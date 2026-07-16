@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -18,7 +16,8 @@ env:
   APP_NAME: Kakitangan Leave Notifier
   PROJECT: KakitanganLeaveNotifier.xcodeproj
   SCHEME: KakitanganLeaveNotifier
-  APPCAST_URL: https://anderscheow.github.io/kakitangan-leave-notifier/appcast.xml
+  APPCAST_URL: https://github.com/anderscheow/kakitangan-leave-notifier-updates/releases/latest/download/appcast.xml
+  UPDATES_REPOSITORY: anderscheow/kakitangan-leave-notifier-updates
   SPARKLE_ACCOUNT: com.kakitangan.leave-notifier
 
 jobs:
@@ -214,18 +213,6 @@ jobs:
           xcrun stapler staple "$INSTALLER_PACKAGE"
           spctl -a -vv -t install "$INSTALLER_PACKAGE"
 
-      - name: Publish GitHub Release artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.release.outputs.version }}"
-          gh release create "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip" \
-            "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.pkg" \
-            --title "Kakitangan Leave Notifier $VERSION" \
-            --generate-notes
-
       - name: Generate Sparkle appcast
         env:
           SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
@@ -233,12 +220,11 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.release.outputs.version }}"
           UPDATE_DIRECTORY="$RUNNER_TEMP/updates"
-          PAGES_DIRECTORY="$RUNNER_TEMP/pages"
           UPDATE_ARCHIVE="$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip"
           SPARKLE_GENERATE_APPC="$RUNNER_TEMP/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
-          DOWNLOAD_URL_PREFIX="https://github.com/anderscheow/kakitangan-leave-notifier/releases/download/$GITHUB_REF_NAME/"
+          DOWNLOAD_URL_PREFIX="https://github.com/$UPDATES_REPOSITORY/releases/download/$GITHUB_REF_NAME/"
 
-          mkdir -p "$UPDATE_DIRECTORY" "$PAGES_DIRECTORY"
+          mkdir -p "$UPDATE_DIRECTORY"
           curl --fail --location "$APPCAST_URL" --output "$UPDATE_DIRECTORY/appcast.xml" || rm -f "$UPDATE_DIRECTORY/appcast.xml"
           cp "$UPDATE_ARCHIVE" "$UPDATE_DIRECTORY/"
           printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" | "$SPARKLE_GENERATE_APPC" \
@@ -250,16 +236,28 @@ jobs:
             --versions "${{ steps.release.outputs.build_number }}" \
             -o "$UPDATE_DIRECTORY/appcast.xml" \
             "$UPDATE_DIRECTORY"
-          cp "$UPDATE_DIRECTORY/appcast.xml" "$PAGES_DIRECTORY/appcast.xml"
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+      - name: Publish public Sparkle update
+        env:
+          GH_TOKEN: ${{ secrets.UPDATES_REPOSITORY_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip" \
+            "$RUNNER_TEMP/updates/appcast.xml#appcast.xml" \
+            --repo "$UPDATES_REPOSITORY" \
+            --title "Kakitangan Leave Notifier $VERSION" \
+            --notes "Signed Sparkle update archive and appcast."
 
-      - name: Upload appcast to GitHub Pages
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: ${{ runner.temp }}/pages
-
-      - name: Deploy GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish GitHub Release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip" \
+            "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.pkg" \
+            --title "Kakitangan Leave Notifier $VERSION" \
+            --generate-notes

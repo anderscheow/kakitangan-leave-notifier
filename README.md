@@ -56,7 +56,7 @@ notarized, Sparkle-signed `.zip` archive without re-running the installer.
 The appcast is published at:
 
 ```
-https://anderscheow.github.io/kakitangan-leave-notifier/appcast.xml
+https://github.com/anderscheow/kakitangan-leave-notifier-updates/releases/latest/download/appcast.xml
 ```
 
 Sparkle checks this feed daily and users can choose **Check for Updates…** from
@@ -67,12 +67,16 @@ private key must never be committed or placed in a release artifact.
 ### One-time GitHub setup
 
 1. Push this repository to `git@github.com:anderscheow/kakitangan-leave-notifier.git`.
-2. In **Settings → Pages**, set the source to **GitHub Actions**.
-3. Create a Developer ID Application certificate and a Developer ID Installer
+2. Create the public `anderscheow/kakitangan-leave-notifier-updates` repository.
+   It stores only signed Sparkle update archives and `appcast.xml`.
+3. Create a fine-grained personal access token scoped only to that repository
+   with **Contents: Read and write**, and add it to this repository's Actions
+   secrets as `UPDATES_REPOSITORY_TOKEN`.
+4. Create a Developer ID Application certificate and a Developer ID Installer
    certificate in Xcode. Export each as password-protected `.p12` files.
-4. Create an App Store Connect API key with notarization access. Keep its `.p8`
+5. Create an App Store Connect API key with notarization access. Keep its `.p8`
    private key private.
-5. Export the Sparkle private key from this Mac without committing it:
+6. Export the Sparkle private key from this Mac without committing it:
 
    ```zsh
    /tmp/kakitangan-leave-notifier-spm/artifacts/sparkle/Sparkle/bin/generate_keys \
@@ -123,8 +127,8 @@ base64 -i developer-id-installer.p12 | pbcopy
 
 3. The `Release macOS app` workflow archives the app, signs it with Developer
    ID, notarizes and staples the app and installer, publishes the `.zip` and
-   `.pkg` to GitHub Releases, then deploys the signed Sparkle appcast to GitHub
-   Pages.
+   `.pkg` to this repository's GitHub Release, then publishes the signed
+   Sparkle `.zip` and `appcast.xml` to the public updates repository.
 4. Download the published `.pkg` on a separate Mac or macOS user account to
    test the initial install. Then install the previous version and use **Check
    for Updates…** to validate the in-app upgrade path.
