@@ -134,11 +134,30 @@ jobs:
             --issuer "$APP_STORE_CONNECT_ISSUER_ID"
           )
 
+          # notarytool `submit --wait` exits 0 even when the result is Invalid,
+          # so check the status explicitly and dump Apple's per-file reasons
+          # before failing. Without this the run only fails later at `stapler
+          # staple` with an opaque "Error 65".
+          notarize() {
+            local artifact="$1" response submission_id status
+            response="$(xcrun notarytool submit "$artifact" "${NOTARY_ARGUMENTS[@]}" --wait --output-format json)"
+            submission_id="$(plutil -extract id raw -o - - <<<"$response")"
+            status="$(plutil -extract status raw -o - - <<<"$response")"
+            echo "Notarization for $(basename "$artifact"): submission $submission_id -> $status"
+            if [[ "$status" != "Accepted" ]]; then
+              echo "::group::notarytool log for $submission_id"
+              xcrun notarytool log "$submission_id" "${NOTARY_ARGUMENTS[@]}" || true
+              echo "::endgroup::"
+              echo "::error::Notarization failed for $(basename "$artifact") (status: $status)"
+              exit 1
+            fi
+          }
+
           mkdir -p "$RELEASE_DIRECTORY"
           printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$API_KEY_PATH"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           ditto -c -k --keepParent "$APP_PATH" "$UPDATE_ARCHIVE"
-          xcrun notarytool submit "$UPDATE_ARCHIVE" "${NOTARY_ARGUMENTS[@]}" --wait
+          notarize "$UPDATE_ARCHIVE"
           xcrun stapler staple "$APP_PATH"
           spctl -a -vv -t exec "$APP_PATH"
 
@@ -148,7 +167,7 @@ jobs:
             --sign "$DEVELOPER_ID_INSTALLER_IDENTITY" \
             --component "$APP_PATH" /Applications \
             "$INSTALLER_PACKAGE"
-          xcrun notarytool submit "$INSTALLER_PACKAGE" "${NOTARY_ARGUMENTS[@]}" --wait
+          notarize "$INSTALLER_PACKAGE"
           xcrun stapler staple "$INSTALLER_PACKAGE"
           spctl -a -vv -t install "$INSTALLER_PACKAGE"
 
