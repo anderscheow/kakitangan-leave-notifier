@@ -63,7 +63,7 @@ struct LeaveSummary: Equatable, Identifiable {
         case 0:
             return "starts today"
         case 1:
-            return "1 day left"
+            return "Tomorrow"
         default:
             return "\(days) days left"
         }
