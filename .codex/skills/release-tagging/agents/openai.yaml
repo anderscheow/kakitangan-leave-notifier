@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Tagging"
+  short_description: "Cut a signed, notarized release and refresh the Sparkle appcast"
+  default_prompt: "Use $release-tagging to prepare and publish the next Kakitangan Leave Notifier release."

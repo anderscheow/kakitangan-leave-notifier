@@ -1,0 +1,133 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git commit'; then git diff --cached --name-only | xargs grep -l 'AKIA\\|SECRET_KEY\\|password\\s*=\\|api_key\\s*=\\|keystore' 2>/dev/null && echo 'BLOCKED: Potential secrets or sensitive files detected in staged files' && exit 1; fi; true"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -Eq '^\\s*(flutter|dart) '; then echo 'BLOCKED: Use melos run scripts or fvm-prefixed commands instead of bare flutter/dart. See CLAUDE.md \u00a7Command Priority.'; exit 1; fi; true"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git commit'; then git diff --cached --name-only | grep -E '(env\\.json|config_stage\\.json|config_prod\\.json)' && echo 'BLOCKED: Unencrypted config file detected in staged files \u2014 use encrypted variants.' && exit 1; fi; true"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" =~ \\.(g|freezed|gr)\\.dart$ ]]; then echo \"BLOCKED: Never edit generated files manually ($CLAUDE_FILE_PATH) \u2014 run melos run build instead.\"; exit 1; fi; true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/anderscheow/.local/bin/graphify hook-check"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'git worktree add'; then WORKTREE_PATH=$(git worktree list --porcelain | grep '^worktree' | tail -1 | awk '{print $2}'); if [[ -n \"$WORKTREE_PATH\" ]] && [[ -d \"$WORKTREE_PATH\" ]]; then FVM_VERSION=$(grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' \"$WORKTREE_PATH/.fvmrc\" 2>/dev/null | head -1); echo \"Setting up new worktree at $WORKTREE_PATH (Flutter $FVM_VERSION)...\"; cd \"$WORKTREE_PATH\" && fvm use \"$FVM_VERSION\" && melos run get && melos run intl && melos run build && melos run fluttergen && echo 'Worktree setup complete.'; fi; fi; true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == *.dart ]]; then fvm dart format \"$CLAUDE_FILE_PATH\" 2>/dev/null; fvm dart analyze \"$CLAUDE_FILE_PATH\" 2>/dev/null; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == *.dart ]] && [[ \"$CLAUDE_FILE_PATH\" =~ /application/|/domain/|/infrastructure/dto/|/infrastructure/ds/|/shared/providers|_page\\.dart$|app_router\\.dart$ ]]; then echo 'Codegen-relevant file changed \u2014 running build...'; melos run build; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == */assets/translations/en.json ]]; then echo 'Translation file changed \u2014 running intl...'; melos run intl; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == */assets/* ]] && [[ \"$CLAUDE_FILE_PATH\" != */translations/* ]]; then echo 'Asset added \u2014 running fluttergen...'; melos run fluttergen; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == */pubspec.yaml ]]; then echo 'pubspec.yaml changed \u2014 running get + license...'; melos run get && melos run license; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == *.dart ]] || [[ \"$CLAUDE_FILE_PATH\" == *.yaml ]] || [[ \"$CLAUDE_FILE_PATH\" == *.json ]]; then if grep -qiE 'AKIA[0-9A-Z]{16}|password\\s*=\\s*[\"\\x27][^\"\\x27]+[\"\\x27]|api_key\\s*=\\s*[\"\\x27][^\"\\x27]+[\"\\x27]|secret\\s*=\\s*[\"\\x27][^\"\\x27]+[\"\\x27]' \"$CLAUDE_FILE_PATH\" 2>/dev/null; then echo \"WARNING: Potential hardcoded secret detected in $CLAUDE_FILE_PATH \u2014 review before committing.\"; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == *_page.dart ]]; then PAGE_CLASS=$(grep -oE 'class [A-Za-z]+Page' \"$CLAUDE_FILE_PATH\" | head -1 | awk '{print $2}'); if [[ -n \"$PAGE_CLASS\" ]]; then ROUTER=\"$(dirname \"$CLAUDE_FILE_PATH\" | sed 's|/screens.*||')/ui/routes/app_router.dart\"; if [[ -f \"$ROUTER\" ]] && ! grep -q \"$PAGE_CLASS\" \"$ROUTER\"; then echo \"WARNING: $PAGE_CLASS is not registered in app_router.dart \u2014 add it to @AutoRouterConfig routes.\"; fi; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == *.dart ]]; then if grep -qE '^\\s*print\\(' \"$CLAUDE_FILE_PATH\" 2>/dev/null; then echo \"WARNING: print() detected in $CLAUDE_FILE_PATH \u2014 use a logger or guard with kDebugMode before releasing.\"; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == */screens/**/*.dart ]] || [[ \"$CLAUDE_FILE_PATH\" == */screens/*.dart ]]; then if grep -qE \"Text\\(['\\\"][^'\\\"]{3,}['\\\"]\" \"$CLAUDE_FILE_PATH\" 2>/dev/null; then echo \"WARNING: Possible hardcoded user-visible string in $CLAUDE_FILE_PATH \u2014 add to assets/translations/en.json and use LocaleKeys.\"; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == */screens/**/*.dart ]] || [[ \"$CLAUDE_FILE_PATH\" == */screens/*.dart ]]; then if grep -qE 'on(Pressed|Tap|Changed|Submitted)[^}]*ref\\.watch' \"$CLAUDE_FILE_PATH\" 2>/dev/null; then echo \"WARNING: ref.watch inside event handler detected in $CLAUDE_FILE_PATH \u2014 use ref.read instead (CLAUDE.md \u00a75).\"; fi; fi"
+          },
+          {
+            "type": "command",
+            "command": "if [[ \"$CLAUDE_FILE_PATH\" == *.dart ]]; then if ! command -v python3 &>/dev/null; then brew install python; fi; python3 '/Users/anderscheow/Documents/Git-Projects/Flutter/flutter_calorie_quest/.codex/hooks/sort_dart_method_order.py' 2>/dev/null; fi; true"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/anderscheow/Documents/Git-Projects/Flutter/flutter_calorie_quest/.codex/hooks/prune_gone_branches.sh'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '\\n--- Session Analysis ---'; fvm dart analyze lib/ 2>&1 | tail -20"
+          },
+          {
+            "type": "command",
+            "command": "CHANGED=$(git diff --name-only); if [[ -n \"$CHANGED\" ]]; then echo '\\n--- Files changed this session ---'; git diff --stat HEAD; fi"
+          },
+          {
+            "type": "command",
+            "command": "UNSTAGED=$(git diff --name-only); if [[ -n \"$UNSTAGED\" ]]; then echo \"\\nReminder: You have unstaged changes \u2014 review with 'git diff' before committing.\"; fi"
+          },
+          {
+            "type": "command",
+            "command": "echo '\\n--- Formatting lib/ ---'; melos run format 2>/dev/null; true"
+          }
+        ]
+      }
+    ]
+  }
+}
