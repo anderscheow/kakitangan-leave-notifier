@@ -1,0 +1,40 @@
+name: Verify macOS build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build without signing
+    runs-on: macos-15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Resolve packages
+        run: >-
+          xcodebuild
+          -project KakitanganLeaveNotifier.xcodeproj
+          -scheme KakitanganLeaveNotifier
+          -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages"
+          -resolvePackageDependencies
+
+      - name: Build
+        run: >-
+          xcodebuild
+          -project KakitanganLeaveNotifier.xcodeproj
+          -scheme KakitanganLeaveNotifier
+          -configuration Debug
+          -destination 'platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/DerivedData"
+          -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages"
+          CODE_SIGNING_ALLOWED=NO
+          build

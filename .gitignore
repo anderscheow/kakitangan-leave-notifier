@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+DerivedData/
+
+*.xcuserstate
+xcuserdata/
+
+*.p12
+*.provisionprofile
+AuthKey_*.p8
+sparkle_ed25519_private_key*
+
+__pycache__/
+*.pyc
+
