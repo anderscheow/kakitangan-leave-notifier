@@ -13,6 +13,10 @@ enum NotificationPermissionStatus: Equatable {
 final class NotificationService {
     static let shared = NotificationService()
 
+    /// Delay inserted between consecutive notifications so macOS delivers them
+    /// one by one instead of collapsing a rapid burst.
+    private let throttleIntervalNanoseconds: UInt64 = 1_000_000_000
+
     private let center = UNUserNotificationCenter.current()
 
     private init() {}
@@ -61,12 +65,15 @@ final class NotificationService {
             )
             return
         }
-        for leave in report.leaves {
+        for (index, leave) in report.leaves.enumerated() {
             try await add(
                 title: "\(leave.name): \(leave.remainingDaysLabel(from: report.today))",
                 body: "\(leave.leaveType) • \(DateOnly.display(leave.startDate))–\(DateOnly.display(leave.endDate))",
                 threadIdentifier: leave.email,
             )
+            if index < report.leaves.count - 1 {
+                try await Task.sleep(nanoseconds: throttleIntervalNanoseconds)
+            }
         }
     }
 

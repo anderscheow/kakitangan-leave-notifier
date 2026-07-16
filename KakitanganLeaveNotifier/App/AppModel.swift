@@ -364,8 +364,10 @@ final class AppModel: ObservableObject {
             let password = try keychainStore.password(account: configuration.accountEmail)
             let report = try await LeaveCheckService(configuration: configuration, password: password).check()
             latestReport = report
-            try await NotificationService.shared.send(report: report)
             statusMessage = "Checked successfully: \(report.leaves.count) matching leave record(s)."
+            // Deliver off the UI critical path: the 1s throttle between multiple alerts must not
+            // hold the spinner or defer the status message. The background runner still awaits.
+            Task { try? await NotificationService.shared.send(report: report) }
         } catch {
             statusMessage = error.localizedDescription
         }
