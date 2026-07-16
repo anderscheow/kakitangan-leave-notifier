@@ -248,7 +248,7 @@ jobs:
             --maximum-versions 3 \
             --maximum-deltas 0 \
             --versions "${{ steps.release.outputs.build_number }}" \
-            -o appcast.xml \
+            -o "$UPDATE_DIRECTORY/appcast.xml" \
             "$UPDATE_DIRECTORY"
           cp "$UPDATE_DIRECTORY/appcast.xml" "$PAGES_DIRECTORY/appcast.xml"
 
