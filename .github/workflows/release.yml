@@ -114,6 +114,49 @@ jobs:
             CURRENT_PROJECT_VERSION="${{ steps.release.outputs.build_number }}" \
             ${SIGNING_ARGUMENTS[@]+"${SIGNING_ARGUMENTS[@]}"}
 
+      - name: Re-sign embedded Sparkle code
+        env:
+          DEVELOPER_ID_APPLICATION_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION_IDENTITY }}
+        run: |
+          set -euo pipefail
+          APP_PATH="$RUNNER_TEMP/KakitanganLeaveNotifier.xcarchive/Products/Applications/$APP_NAME.app"
+          SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+          SPARKLE_CONTENTS="$SPARKLE_FRAMEWORK/Versions/Current"
+          SIGNING_TARGETS=(
+            "$SPARKLE_CONTENTS/Autoupdate"
+            "$SPARKLE_CONTENTS/XPCServices/Downloader.xpc"
+            "$SPARKLE_CONTENTS/XPCServices/Installer.xpc"
+            "$SPARKLE_CONTENTS/Updater.app"
+            "$SPARKLE_FRAMEWORK"
+            "$APP_PATH"
+          )
+
+          sign() {
+            codesign --force \
+              --sign "$DEVELOPER_ID_APPLICATION_IDENTITY" \
+              --timestamp \
+              --options runtime \
+              --preserve-metadata=identifier,entitlements \
+              "$1"
+          }
+
+          verify() {
+            local target="$1" signature
+            codesign --verify --strict --verbose=2 "$target"
+            signature="$(codesign -dvv "$target" 2>&1)"
+            grep -q 'Authority=Developer ID Application' <<<"$signature"
+            grep -q '^Timestamp=' <<<"$signature"
+          }
+
+          for target in "${SIGNING_TARGETS[@]}"; do
+            [[ -e "$target" ]] || { echo "::error::Missing signing target: $target"; exit 1; }
+            sign "$target"
+          done
+
+          for target in "${SIGNING_TARGETS[@]}"; do
+            verify "$target"
+          done
+
       - name: Notarize app and create release artifacts
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
