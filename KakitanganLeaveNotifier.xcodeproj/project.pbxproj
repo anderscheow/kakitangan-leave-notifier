@@ -1,0 +1,361 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 71;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* KakitanganLeaveNotifierApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* KakitanganLeaveNotifierApp.swift */; };
+		A10000000000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* AppDelegate.swift */; };
+		A10000000000000000000003 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* AppModel.swift */; };
+		A10000000000000000000004 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* ContentView.swift */; };
+		A10000000000000000000005 /* ConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* ConfigurationStore.swift */; };
+		A10000000000000000000006 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* KeychainStore.swift */; };
+		A10000000000000000000007 /* KakitanganAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* KakitanganAPIClient.swift */; };
+		A10000000000000000000008 /* LeaveCheckService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* LeaveCheckService.swift */; };
+		A10000000000000000000009 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* NotificationService.swift */; };
+		A10000000000000000000010 /* LaunchAgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* LaunchAgentService.swift */; };
+		A10000000000000000000011 /* LeaveModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* LeaveModels.swift */; };
+		A10000000000000000000012 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* UserNotifications.framework */; };
+		A10000000000000000000013 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* Security.framework */; };
+		A10000000000000000000015 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* AppUpdater.swift */; };
+		A10000000000000000000016 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000002 /* Sparkle */; };
+		A10000000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* KakitanganLeaveNotifierApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KakitanganLeaveNotifierApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* ConfigurationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000006 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* KakitanganAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KakitanganAPIClient.swift; sourceTree = "<group>"; };
+		A20000000000000000000008 /* LeaveCheckService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveCheckService.swift; sourceTree = "<group>"; };
+		A20000000000000000000009 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		A20000000000000000000010 /* LaunchAgentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAgentService.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* LeaveModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveModels.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* Kakitangan Leave Notifier.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Kakitangan Leave Notifier.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000013 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
+		A20000000000000000000014 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		A20000000000000000000015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A20000000000000000000016 /* KakitanganLeaveNotifier.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KakitanganLeaveNotifier.entitlements; sourceTree = "<group>"; };
+		A20000000000000000000018 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
+		A20000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000012 /* UserNotifications.framework in Frameworks */,
+				A10000000000000000000013 /* Security.framework in Frameworks */,
+				A10000000000000000000016 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000002 /* KakitanganLeaveNotifier */,
+				A40000000000000000000006 /* Frameworks */,
+				A40000000000000000000007 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000000000000000000002 /* KakitanganLeaveNotifier */ = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000003 /* App */,
+				A40000000000000000000004 /* Services */,
+				A40000000000000000000005 /* Models */,
+				A40000000000000000000008 /* Views */,
+				A40000000000000000000009 /* Resources */,
+			);
+			path = KakitanganLeaveNotifier;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* KakitanganLeaveNotifierApp.swift */,
+				A20000000000000000000002 /* AppDelegate.swift */,
+				A20000000000000000000003 /* AppModel.swift */,
+				A20000000000000000000018 /* AppUpdater.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000004 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000005 /* ConfigurationStore.swift */,
+				A20000000000000000000006 /* KeychainStore.swift */,
+				A20000000000000000000007 /* KakitanganAPIClient.swift */,
+				A20000000000000000000008 /* LeaveCheckService.swift */,
+				A20000000000000000000009 /* NotificationService.swift */,
+				A20000000000000000000010 /* LaunchAgentService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000005 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000011 /* LeaveModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000006 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000013 /* UserNotifications.framework */,
+				A20000000000000000000014 /* Security.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000007 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000012 /* Kakitangan Leave Notifier.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000008 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000004 /* ContentView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000009 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000015 /* Info.plist */,
+				A20000000000000000000016 /* KakitanganLeaveNotifier.entitlements */,
+				A20000000000000000000019 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* KakitanganLeaveNotifier */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "KakitanganLeaveNotifier" */;
+			buildPhases = (
+				A30000000000000000000002 /* Sources */,
+				A30000000000000000000001 /* Frameworks */,
+				A30000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KakitanganLeaveNotifier;
+			packageProductDependencies = (
+				A90000000000000000000002 /* Sparkle */,
+			);
+			productName = KakitanganLeaveNotifier;
+			productReference = A20000000000000000000012 /* Kakitangan Leave Notifier.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A70000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					A50000000000000000000001 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+				};
+			};
+			buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "KakitanganLeaveNotifier" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A40000000000000000000001;
+			productRefGroup = A40000000000000000000007 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			packageReferences = (
+				A90000000000000000000001 /* XCRemoteSwiftPackageReference \"Sparkle\" */,
+			);
+			targets = (
+				A50000000000000000000001 /* KakitanganLeaveNotifier */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A30000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000017 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A30000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* KakitanganLeaveNotifierApp.swift in Sources */,
+				A10000000000000000000002 /* AppDelegate.swift in Sources */,
+				A10000000000000000000003 /* AppModel.swift in Sources */,
+				A10000000000000000000004 /* ContentView.swift in Sources */,
+				A10000000000000000000005 /* ConfigurationStore.swift in Sources */,
+				A10000000000000000000006 /* KeychainStore.swift in Sources */,
+				A10000000000000000000007 /* KakitanganAPIClient.swift in Sources */,
+				A10000000000000000000008 /* LeaveCheckService.swift in Sources */,
+				A10000000000000000000009 /* NotificationService.swift in Sources */,
+				A10000000000000000000010 /* LaunchAgentService.swift in Sources */,
+				A10000000000000000000011 /* LeaveModels.swift in Sources */,
+				A10000000000000000000015 /* AppUpdater.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A90000000000000000000002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A80000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A80000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A80000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = KakitanganLeaveNotifier/Resources/KakitanganLeaveNotifier.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U3DRA89HW8;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KakitanganLeaveNotifier/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Kakitangan Leave Notifier";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.kakitangan.leave-notifier";
+				PRODUCT_NAME = "Kakitangan Leave Notifier";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		A80000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = KakitanganLeaveNotifier/Resources/KakitanganLeaveNotifier.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = U3DRA89HW8;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KakitanganLeaveNotifier/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Kakitangan Leave Notifier";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.kakitangan.leave-notifier";
+				PRODUCT_NAME = "Kakitangan Leave Notifier";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A60000000000000000000001 /* Build configuration list for PBXProject "KakitanganLeaveNotifier" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000001 /* Debug */,
+				A80000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A60000000000000000000002 /* Build configuration list for PBXNativeTarget "KakitanganLeaveNotifier" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000003 /* Debug */,
+				A80000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A70000000000000000000001 /* Project object */;
+}
