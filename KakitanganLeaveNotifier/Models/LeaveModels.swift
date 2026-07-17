@@ -60,6 +60,8 @@ struct LeaveSummary: Equatable, Identifiable {
     func remainingDaysLabel(from today: Date) -> String {
         let days = Calendar.current.dateComponents([.day], from: today, to: startDate).day ?? 0
         switch days {
+        case ..<0:
+            return "On leave"
         case 0:
             return "starts today"
         case 1:

@@ -33,8 +33,8 @@ struct LeaveCheckService {
                   monitoredEmails.contains(applicant.email.lowercased()),
                   let startDate = DateOnly.date(from: record.startDate),
                   let endDate = DateOnly.date(from: record.endDate),
-                  startDate >= today,
-                  startDate <= endDate else {
+                  startDate <= endDate,
+                  endDate >= today else {
                 return nil
             }
             return LeaveSummary(
