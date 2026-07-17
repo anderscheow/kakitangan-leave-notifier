@@ -55,7 +55,9 @@ enum LaunchAgentService {
         }
         var propertyList: [String: Any] = [
             "Label": label,
-            "ProgramArguments": ["/usr/bin/open", "-gj", applicationURL.path, "--args", "--check-leaves"],
+            // `-n` forces a new instance: without it, `open` reuses an already-running GUI
+            // instance and drops `--args`, so the scheduled check never runs while the app is open.
+            "ProgramArguments": ["/usr/bin/open", "-gjn", applicationURL.path, "--args", "--check-leaves"],
             "ProcessType": "Background",
             "StandardOutPath": logsURL.appendingPathComponent("leave-notifier.log").path,
             "StandardErrorPath": logsURL.appendingPathComponent("leave-notifier.error.log").path,
