@@ -46,6 +46,46 @@ struct LeaveType: Decodable {
 }
 
 
+/// A person returned by the "all managed employees" endpoint. Only the fields the picker needs are
+/// decoded — the API also returns highly sensitive PII (NRIC, bank, salary, address) that this app
+/// deliberately never reads or stores.
+struct ManagedEmployee: Decodable, Identifiable, Equatable {
+    let email: String
+    let officialFullName: String?
+    let preferredName: String?
+    let department: String?
+    let terminationDate: String?
+
+    var id: String { email.lowercased() }
+
+    var displayName: String {
+        for candidate in [preferredName, officialFullName] {
+            if let name = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+                return name
+            }
+        }
+        return email
+    }
+
+    var departmentName: String {
+        let trimmed = department?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "Other" : trimmed
+    }
+
+    var isTerminated: Bool {
+        terminationDate != nil
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case email
+        case officialFullName = "official_full_name"
+        case preferredName = "preferred_name"
+        case department
+        case terminationDate = "termination_date"
+    }
+}
+
+
 struct LeaveSummary: Equatable, Identifiable {
     let name: String
     let email: String
@@ -69,6 +109,44 @@ struct LeaveSummary: Equatable, Identifiable {
         default:
             return "\(days) days left"
         }
+    }
+
+    /// Collapses continuous leaves into a single summary. Two leaves are merged when they belong to the
+    /// same person (email) and leave type, and their date ranges touch or overlap — that is, the next
+    /// leave starts no later than the day after the current one ends. Same leave type is required so the
+    /// merged row keeps an accurate leave-type label.
+    static func mergingContinuous(_ leaves: [LeaveSummary], calendar: Calendar = .current) -> [LeaveSummary] {
+        let grouped = Dictionary(grouping: leaves) { "\($0.email)|\($0.leaveType)" }
+        var merged: [LeaveSummary] = []
+
+        for group in grouped.values {
+            let sorted = group.sorted { $0.startDate < $1.startDate }
+            guard var current = sorted.first else {
+                continue
+            }
+            for next in sorted.dropFirst() {
+                let dayAfterCurrentEnd = calendar.date(
+                    byAdding: .day,
+                    value: 1,
+                    to: calendar.startOfDay(for: current.endDate),
+                ) ?? current.endDate
+                if calendar.startOfDay(for: next.startDate) <= dayAfterCurrentEnd {
+                    current = LeaveSummary(
+                        name: current.name,
+                        email: current.email,
+                        startDate: current.startDate,
+                        endDate: max(current.endDate, next.endDate),
+                        leaveType: current.leaveType,
+                    )
+                } else {
+                    merged.append(current)
+                    current = next
+                }
+            }
+            merged.append(current)
+        }
+
+        return merged.sorted { $0.startDate < $1.startDate }
     }
 }
 

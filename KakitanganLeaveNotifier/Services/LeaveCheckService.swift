@@ -45,7 +45,8 @@ struct LeaveCheckService {
                 leaveType: record.leaveType?.name ?? "Leave",
             )
         }
-        return LeaveReport(leaves: leaves.sorted { $0.startDate < $1.startDate }, daysAhead: configuration.daysAhead, today: today)
+        let mergedLeaves = LeaveSummary.mergingContinuous(leaves, calendar: calendar)
+        return LeaveReport(leaves: mergedLeaves, daysAhead: configuration.daysAhead, today: today)
     }
 }
 

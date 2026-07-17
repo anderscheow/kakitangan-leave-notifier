@@ -500,67 +500,215 @@ private struct AccountCard: View {
 
 private struct MonitoredEmailsCard: View {
     @EnvironmentObject private var model: AppModel
+    @State private var searchText = ""
+    @State private var newEmail = ""
 
     var body: some View {
         SurfaceCard {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("People to monitor", systemImage: "person.2")
-                        .font(.headline)
-                        .foregroundStyle(Color.leaveInk)
-                    Text("Add the employee emails to watch. Only approved leave starting within the look-ahead window is included.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                VStack(spacing: 8) {
-                    ForEach($model.monitoredEmails) { $email in
-                        emailRow($email)
-                    }
-                }
-
-                Button {
-                    model.addMonitoredEmail()
-                } label: {
-                    Label("Add email", systemImage: "plus")
-                }
-                .buttonStyle(.bordered)
-
+                header
+                pickerControls
+                pickerContent
                 Divider()
-
+                manualFallback
+                Divider()
                 Stepper("Look ahead: \(model.daysAhead) days", value: $model.daysAhead, in: 0...365)
                     .accessibilityLabel("Look-ahead window in days")
             }
         }
+        .task { await model.loadManagedEmployeesIfNeeded() }
     }
 
-    private func emailRow(_ email: Binding<MonitoredEmail>) -> some View {
-        let trimmed = email.wrappedValue.address.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isInvalid = !trimmed.isEmpty && !trimmed.contains("@")
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label("People to monitor", systemImage: "person.2")
+                    .font(.headline)
+                    .foregroundStyle(Color.leaveInk)
+                Spacer()
+                Text("\(model.monitoredEmployeeCount) selected")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Text("Select the employees to watch. Only approved leave active within the look-ahead window is included.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
-        return HStack(spacing: 12) {
-            Image(systemName: isInvalid ? "exclamationmark.triangle.fill" : "envelope")
-                .foregroundStyle(isInvalid ? Color.leaveOrange : Color.leaveTeal)
-                .frame(width: 20)
-                .accessibilityHidden(true)
+    private var pickerControls: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search name or email", text: $searchText)
+                    .textFieldStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            TextField("name@g2g.com", text: email.address)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Monitored employee email")
-
-            Button(role: .destructive) {
-                model.removeMonitoredEmail(id: email.wrappedValue.id)
+            Button {
+                Task { await model.loadManagedEmployees() }
             } label: {
-                Image(systemName: "minus")
+                Label("Refresh", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
-            .disabled(model.monitoredEmails.count <= 1)
-            .accessibilityLabel("Remove this email")
+            .disabled(model.isLoadingEmployees)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var pickerContent: some View {
+        if model.isLoadingEmployees && model.managedEmployees.isEmpty {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("Loading employees…").foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+        } else if let error = model.employeeLoadError, model.managedEmployees.isEmpty {
+            errorState(error)
+        } else if model.managedEmployees.isEmpty {
+            emptyState("No managed employees found.")
+        } else {
+            let groups = model.employeesByDepartment(matching: searchText)
+            if groups.isEmpty {
+                emptyState("No employees match your search.")
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groups, id: \.department) { group in
+                            Section {
+                                ForEach(group.employees) { employee in
+                                    employeeRow(employee)
+                                }
+                            } header: {
+                                Text(group.department.uppercased())
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 4)
+                                    .background(Color.leaveSurface)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 300)
+            }
+        }
+    }
+
+    private func employeeRow(_ employee: ManagedEmployee) -> some View {
+        let selected = model.isMonitored(employee.email)
+        return Button {
+            model.setMonitored(employee.email, !selected)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(selected ? Color.leaveTeal : Color.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(employee.displayName)
+                        .foregroundStyle(Color.leaveInk)
+                    Text(employee.email)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                selected ? Color.leaveTeal.opacity(0.10) : Color.leaveElevated,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous),
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(employee.displayName), \(employee.email)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var manualFallback: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Other emails")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.leaveInk)
+            Text("Add someone who isn’t in your managed team.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                TextField("name@g2g.com", text: $newEmail)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(addManualEmail)
+                    .accessibilityLabel("Add employee email manually")
+                Button("Add", action: addManualEmail)
+                    .buttonStyle(.bordered)
+                    .disabled(!newEmail.contains("@"))
+            }
+
+            ForEach(model.customMonitoredEmails, id: \.self) { email in
+                HStack(spacing: 12) {
+                    Image(systemName: "envelope")
+                        .foregroundStyle(Color.leaveTeal)
+                        .frame(width: 20)
+                        .accessibilityHidden(true)
+                    Text(email).foregroundStyle(Color.leaveInk)
+                    Spacer()
+                    Button(role: .destructive) {
+                        model.setMonitored(email, false)
+                    } label: {
+                        Image(systemName: "minus")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("Remove \(email)")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+
+    private func errorState(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.leaveOrange)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Try again") {
+                    Task { await model.loadManagedEmployees() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func emptyState(_ message: String) -> some View {
+        Text(message)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+    }
+
+    private func addManualEmail() {
+        let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.contains("@") else {
+            return
+        }
+        model.setMonitored(trimmed, true)
+        newEmail = ""
     }
 }
 

@@ -193,6 +193,7 @@ enum NotifierError: LocalizedError {
     case passwordNotConfigured
     case authenticationFailed
     case leaveRequestFailed
+    case employeeRequestFailed
     case notificationPermissionDenied
     case unsupportedMacOS
     case launchAgentFailed
@@ -218,6 +219,8 @@ enum NotifierError: LocalizedError {
             return "Kakitangan authentication failed. Check the saved account and password."
         case .leaveRequestFailed:
             return "Kakitangan leave data could not be retrieved."
+        case .employeeRequestFailed:
+            return "The managed employee list could not be retrieved from Kakitangan."
         case .notificationPermissionDenied:
             return "Allow notifications for Kakitangan Leave Notifier in System Settings."
         case .unsupportedMacOS:

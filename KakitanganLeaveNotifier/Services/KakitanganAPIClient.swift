@@ -55,6 +55,24 @@ actor KakitanganAPIClient {
         return page.results
     }
 
+    func fetchManagedEmployees(token: String) async throws -> [ManagedEmployee] {
+        guard let url = URL(string: "https://app.kakitangan.com/api/v1/payroll/user/all_managed_employees") else {
+            throw NotifierError.employeeRequestFailed
+        }
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Token \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw NotifierError.employeeRequestFailed
+        }
+        guard let employees = try? decoder.decode([ManagedEmployee].self, from: data) else {
+            throw NotifierError.employeeRequestFailed
+        }
+        return employees
+    }
+
     private func response<Response: Decodable>(for request: URLRequest, failure: NotifierError) async throws -> Response {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {

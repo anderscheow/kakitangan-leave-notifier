@@ -65,6 +65,9 @@ final class AppModel: ObservableObject {
     @Published var isChecking: Bool = false
     @Published var isRefreshing: Bool = false
     @Published private(set) var latestReport: LeaveReport?
+    @Published private(set) var managedEmployees: [ManagedEmployee] = []
+    @Published var isLoadingEmployees: Bool = false
+    @Published var employeeLoadError: String?
     @Published var isInstallingSchedule: Bool = false
     @Published var isRequestingPermission: Bool = false
     @Published private(set) var screen: AppScreen
@@ -283,15 +286,86 @@ final class AppModel: ObservableObject {
         ) ?? Date()
     }
 
-    func addMonitoredEmail() {
-        monitoredEmails.append(MonitoredEmail(address: ""))
+    /// Loads the managed-employee list only if it hasn't been fetched yet. Used to populate the
+    /// picker automatically when the settings screen appears without re-hitting the API each time.
+    func loadManagedEmployeesIfNeeded() async {
+        guard managedEmployees.isEmpty, !isLoadingEmployees else {
+            return
+        }
+        await loadManagedEmployees()
     }
 
-    func removeMonitoredEmail(id: MonitoredEmail.ID) {
-        monitoredEmails.removeAll { $0.id == id }
-        if monitoredEmails.isEmpty {
-            monitoredEmails.append(MonitoredEmail(address: ""))
+    /// Logs in with the saved account and fetches the people this account manages, dropping anyone
+    /// with a termination date so only active employees are offered for selection.
+    func loadManagedEmployees() async {
+        guard !isLoadingEmployees else {
+            return
         }
+        isLoadingEmployees = true
+        employeeLoadError = nil
+        defer { isLoadingEmployees = false }
+
+        let account = accountEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !account.isEmpty else {
+            employeeLoadError = NotifierError.invalidAccountEmail.localizedDescription
+            return
+        }
+        do {
+            let secret = password.isEmpty ? try keychainStore.password(account: account) : password
+            let client = KakitanganAPIClient()
+            let token = try await client.login(accountEmail: account, password: secret)
+            let employees = try await client.fetchManagedEmployees(token: token)
+            managedEmployees = employees
+                .filter { !$0.isTerminated }
+                .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        } catch {
+            employeeLoadError = error.localizedDescription
+        }
+    }
+
+    /// Active managed employees grouped by department, optionally filtered by a name/email query.
+    func employeesByDepartment(matching query: String) -> [(department: String, employees: [ManagedEmployee])] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let matches = needle.isEmpty ? managedEmployees : managedEmployees.filter {
+            $0.displayName.lowercased().contains(needle) || $0.email.lowercased().contains(needle)
+        }
+        return Dictionary(grouping: matches, by: \.departmentName)
+            .map { (department: $0.key, employees: $0.value) }
+            .sorted { $0.department.localizedCaseInsensitiveCompare($1.department) == .orderedAscending }
+    }
+
+    func isMonitored(_ email: String) -> Bool {
+        let target = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return monitoredEmails.contains { normalized($0.address) == target }
+    }
+
+    func setMonitored(_ email: String, _ isMonitored: Bool) {
+        let target = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty else {
+            return
+        }
+        if isMonitored {
+            guard !self.isMonitored(target) else {
+                return
+            }
+            monitoredEmails.append(MonitoredEmail(address: target))
+        } else {
+            let lowered = target.lowercased()
+            monitoredEmails.removeAll { normalized($0.address) == lowered }
+        }
+    }
+
+    /// Monitored emails that don't map to a managed employee — i.e. people added manually. Keeps the
+    /// picker and the manual fallback from showing the same person twice.
+    var customMonitoredEmails: [String] {
+        let managed = Set(managedEmployees.map { $0.email.lowercased() })
+        return normalizedMonitoredEmails
+            .filter { !managed.contains($0.lowercased()) }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func normalized(_ address: String) -> String {
+        address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     func addNotificationTime() {
@@ -401,8 +475,7 @@ final class AppModel: ObservableObject {
     }
 
     private static func monitoredEmails(from addresses: [String]) -> [MonitoredEmail] {
-        let mapped = addresses.map { MonitoredEmail(address: $0) }
-        return mapped.isEmpty ? [MonitoredEmail(address: "")] : mapped
+        addresses.map { MonitoredEmail(address: $0) }
     }
 
     private func makeConfiguration() throws -> NotifierConfiguration {
