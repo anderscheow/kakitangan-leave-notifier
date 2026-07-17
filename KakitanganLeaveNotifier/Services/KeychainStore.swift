@@ -28,8 +28,11 @@ struct KeychainStore {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data, let password = String(data: data, encoding: .utf8) else {
+        if status == errSecItemNotFound {
             throw NotifierError.passwordNotConfigured
+        }
+        guard status == errSecSuccess, let data = item as? Data, let password = String(data: data, encoding: .utf8) else {
+            throw NotifierError.keychainAccessFailed(status: status)
         }
         return password
     }
@@ -50,13 +53,14 @@ struct KeychainStore {
             return
         }
         guard updateStatus == errSecItemNotFound else {
-            throw NotifierError.passwordNotConfigured
+            throw NotifierError.keychainAccessFailed(status: updateStatus)
         }
 
         var addQuery = query
         addQuery[kSecValueData as String] = passwordData
-        guard SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess else {
-            throw NotifierError.passwordNotConfigured
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            throw NotifierError.keychainAccessFailed(status: addStatus)
         }
     }
 }

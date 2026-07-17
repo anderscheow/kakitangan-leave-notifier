@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 
 enum AppVisibility: String, Codable, CaseIterable, Identifiable {
@@ -195,6 +196,7 @@ enum NotifierError: LocalizedError {
     case notificationPermissionDenied
     case unsupportedMacOS
     case launchAgentFailed
+    case keychainAccessFailed(status: OSStatus)
 
     var errorDescription: String? {
         switch self {
@@ -222,6 +224,9 @@ enum NotifierError: LocalizedError {
             return "Time Sensitive notifications require macOS 12 or later."
         case .launchAgentFailed:
             return "The weekday launch agent could not be installed."
+        case let .keychainAccessFailed(status):
+            let detail = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown keychain error."
+            return "The keychain denied access (error \(status): \(detail))."
         }
     }
 }
