@@ -59,6 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    /// Keep the app alive in the menu bar when its window closes (via ⌘Q, ⌘W, or the red button).
+    /// The real quit is the status-bar "Quit" item, which calls `NSApp.terminate` directly.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         if let appVisibilityObserver {
             NotificationCenter.default.removeObserver(appVisibilityObserver)
@@ -131,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menu.addItem(
             withTitle: "Quit Kakitangan Leave Notifier",
             action: #selector(quit),
-            keyEquivalent: "q",
+            keyEquivalent: "",
         )
         menu.items.forEach { $0.target = self }
         return menu

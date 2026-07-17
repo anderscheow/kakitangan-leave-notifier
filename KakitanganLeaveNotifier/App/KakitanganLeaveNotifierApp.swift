@@ -14,6 +14,15 @@ struct KakitanganLeaveNotifierApp: App {
                 .frame(minWidth: 680, minHeight: 620)
         }
         .commands {
+            // ⌘Q closes the window and leaves the app running in the menu bar instead of quitting.
+            // Real quit lives in the status-bar menu. Termination is not intercepted at the app
+            // level, so logout/restart/shutdown still terminate the app normally.
+            CommandGroup(replacing: .appTermination) {
+                Button("Close Window") {
+                    NSApp.keyWindow?.close()
+                }
+                .keyboardShortcut("q", modifiers: .command)
+            }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {
                     openSettings()
