@@ -510,6 +510,8 @@ private struct MonitoredEmailsCard: View {
                 pickerControls
                 pickerContent
                 Divider()
+                selectedUsersList
+                Divider()
                 manualFallback
                 Divider()
                 Stepper("Look ahead: \(model.daysAhead) days", value: $model.daysAhead, in: 0...365)
@@ -633,7 +635,7 @@ private struct MonitoredEmailsCard: View {
 
     private var manualFallback: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Other emails")
+            Text("Add by email")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.leaveInk)
             Text("Add someone who isn’t in your managed team.")
@@ -649,28 +651,109 @@ private struct MonitoredEmailsCard: View {
                     .buttonStyle(.bordered)
                     .disabled(!newEmail.contains("@"))
             }
+        }
+    }
 
-            ForEach(model.customMonitoredEmails, id: \.self) { email in
-                HStack(spacing: 12) {
-                    Image(systemName: "envelope")
-                        .foregroundStyle(Color.leaveTeal)
-                        .frame(width: 20)
-                        .accessibilityHidden(true)
-                    Text(email).foregroundStyle(Color.leaveInk)
-                    Spacer()
-                    Button(role: .destructive) {
-                        model.setMonitored(email, false)
-                    } label: {
-                        Image(systemName: "minus")
+    private var selectedUsersList: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Selected users", systemImage: "checklist")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.leaveInk)
+                Spacer()
+                Text("\(model.monitoredEmployeeCount)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.leaveTeal)
+                    .accessibilityLabel("\(model.monitoredEmployeeCount) selected users")
+            }
+
+            if model.monitoredEmployeeCount == 0 {
+                Text("No users selected yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(selectedManagedEmployees) { employee in
+                            selectedManagedEmployeeRow(employee)
+                        }
+
+                        ForEach(model.customMonitoredEmails, id: \.self) { email in
+                            selectedEmailRow(email)
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Remove \(email)")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(maxHeight: 220)
             }
         }
+    }
+
+    private var selectedManagedEmployees: [ManagedEmployee] {
+        model.managedEmployees
+            .filter { model.isMonitored($0.email) }
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    private func selectedManagedEmployeeRow(_ employee: ManagedEmployee) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Color.leaveTeal)
+                .frame(width: 20)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(employee.displayName)
+                    .foregroundStyle(Color.leaveInk)
+                Text(employee.email)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(role: .destructive) {
+                model.setMonitored(employee.email, false)
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Remove \(employee.displayName)")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func selectedEmailRow(_ email: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Color.leaveTeal)
+                .frame(width: 20)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(email)
+                    .foregroundStyle(Color.leaveInk)
+                Text("Added by email")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(role: .destructive) {
+                model.setMonitored(email, false)
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Remove \(email)")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func errorState(_ message: String) -> some View {
