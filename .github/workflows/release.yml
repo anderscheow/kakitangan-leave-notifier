@@ -16,8 +16,7 @@ env:
   APP_NAME: Kakitangan Leave Notifier
   PROJECT: KakitanganLeaveNotifier.xcodeproj
   SCHEME: KakitanganLeaveNotifier
-  APPCAST_URL: https://github.com/anderscheow/kakitangan-leave-notifier-updates/releases/latest/download/appcast.xml
-  UPDATES_REPOSITORY: anderscheow/kakitangan-leave-notifier-updates
+  APPCAST_URL: https://github.com/anderscheow/kakitangan-leave-notifier/releases/latest/download/appcast.xml
   SPARKLE_ACCOUNT: com.kakitangan.leave-notifier
 
 jobs:
@@ -222,7 +221,7 @@ jobs:
           UPDATE_DIRECTORY="$RUNNER_TEMP/updates"
           UPDATE_ARCHIVE="$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip"
           SPARKLE_GENERATE_APPC="$RUNNER_TEMP/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
-          DOWNLOAD_URL_PREFIX="https://github.com/$UPDATES_REPOSITORY/releases/download/$GITHUB_REF_NAME/"
+          DOWNLOAD_URL_PREFIX="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/"
 
           mkdir -p "$UPDATE_DIRECTORY"
           curl --fail --location "$APPCAST_URL" --output "$UPDATE_DIRECTORY/appcast.xml" || rm -f "$UPDATE_DIRECTORY/appcast.xml"
@@ -237,19 +236,6 @@ jobs:
             -o "$UPDATE_DIRECTORY/appcast.xml" \
             "$UPDATE_DIRECTORY"
 
-      - name: Publish public Sparkle update
-        env:
-          GH_TOKEN: ${{ secrets.UPDATES_REPOSITORY_TOKEN }}
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.release.outputs.version }}"
-          gh release create "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip" \
-            "$RUNNER_TEMP/updates/appcast.xml#appcast.xml" \
-            --repo "$UPDATES_REPOSITORY" \
-            --title "Kakitangan Leave Notifier $VERSION" \
-            --notes "Signed Sparkle update archive and appcast."
-
       - name: Publish GitHub Release artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -259,5 +245,6 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip" \
             "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.pkg" \
+            "$RUNNER_TEMP/updates/appcast.xml#appcast.xml" \
             --title "Kakitangan Leave Notifier $VERSION" \
             --generate-notes

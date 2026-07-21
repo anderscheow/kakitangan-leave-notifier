@@ -56,7 +56,7 @@ notarized, Sparkle-signed `.zip` archive without re-running the installer.
 The appcast is published at:
 
 ```
-https://github.com/anderscheow/kakitangan-leave-notifier-updates/releases/latest/download/appcast.xml
+https://github.com/anderscheow/kakitangan-leave-notifier/releases/latest/download/appcast.xml
 ```
 
 Sparkle checks this feed daily and users can choose **Check for Updates…** from
@@ -67,16 +67,13 @@ private key must never be committed or placed in a release artifact.
 ### One-time GitHub setup
 
 1. Push this repository to `git@github.com:anderscheow/kakitangan-leave-notifier.git`.
-2. Create the public `anderscheow/kakitangan-leave-notifier-updates` repository.
-   It stores only signed Sparkle update archives and `appcast.xml`.
-3. Create a fine-grained personal access token scoped only to that repository
-   with **Contents: Read and write**, and add it to this repository's Actions
-   secrets as `UPDATES_REPOSITORY_TOKEN`.
-4. Create a Developer ID Application certificate and a Developer ID Installer
+   It must be public so the appcast and signed Sparkle update archives are
+   served from its GitHub Releases.
+2. Create a Developer ID Application certificate and a Developer ID Installer
    certificate in Xcode. Export each as password-protected `.p12` files.
-5. Create an App Store Connect API key with notarization access. Keep its `.p8`
+3. Create an App Store Connect API key with notarization access. Keep its `.p8`
    private key private.
-6. Export the Sparkle private key from this Mac without committing it:
+4. Export the Sparkle private key from this Mac without committing it:
 
    ```zsh
    /tmp/kakitangan-leave-notifier-spm/artifacts/sparkle/Sparkle/bin/generate_keys \
