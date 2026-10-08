@@ -7,7 +7,7 @@
   <key>CFBundleIdentifier</key>
   <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
   <key>CFBundleDisplayName</key>
-  <string>Kakitangan Leave Notifier</string>
+  <string>Kakitangan Companion</string>
   <key>CFBundleShortVersionString</key>
   <string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key>
@@ -15,7 +15,7 @@
   <key>CFBundleIconName</key>
   <string>AppIcon</string>
   <key>CFBundleName</key>
-  <string>Kakitangan Leave Notifier</string>
+  <string>Kakitangan Companion</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>

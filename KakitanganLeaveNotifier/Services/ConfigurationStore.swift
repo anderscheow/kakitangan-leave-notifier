@@ -104,6 +104,7 @@ struct NotifierConfiguration: Codable, Equatable {
     let notificationTimes: [NotificationTime]
     let runAtLogin: Bool
     let appVisibility: AppVisibility
+    let googleCalendar: GoogleCalendarConfiguration
 
     init(
         accounts: [NotifierAccountConfiguration],
@@ -112,6 +113,7 @@ struct NotifierConfiguration: Codable, Equatable {
         notificationTimes: [NotificationTime] = [.defaultTime],
         runAtLogin: Bool = true,
         appVisibility: AppVisibility = .menuBarAndDock,
+        googleCalendar: GoogleCalendarConfiguration = GoogleCalendarConfiguration(),
     ) throws {
         let normalizedNotificationTimes = notificationTimes.sorted()
         guard !accounts.isEmpty, accounts.allSatisfy(\.isComplete) else {
@@ -130,6 +132,7 @@ struct NotifierConfiguration: Codable, Equatable {
         self.notificationTimes = normalizedNotificationTimes
         self.runAtLogin = runAtLogin
         self.appVisibility = appVisibility
+        self.googleCalendar = googleCalendar
     }
 
     static let empty = NotifierConfiguration(
@@ -139,6 +142,7 @@ struct NotifierConfiguration: Codable, Equatable {
         notificationTimes: [.defaultTime],
         runAtLogin: true,
         appVisibility: .menuBarAndDock,
+        googleCalendar: GoogleCalendarConfiguration(),
     )
 
     private init(
@@ -148,6 +152,7 @@ struct NotifierConfiguration: Codable, Equatable {
         notificationTimes: [NotificationTime],
         runAtLogin: Bool,
         appVisibility: AppVisibility,
+        googleCalendar: GoogleCalendarConfiguration,
     ) {
         self.accounts = accounts
         self.selectedAccountID = selectedAccountID
@@ -155,6 +160,7 @@ struct NotifierConfiguration: Codable, Equatable {
         self.notificationTimes = notificationTimes
         self.runAtLogin = runAtLogin
         self.appVisibility = appVisibility
+        self.googleCalendar = googleCalendar
     }
 
     var isComplete: Bool {
@@ -176,6 +182,7 @@ struct NotifierConfiguration: Codable, Equatable {
         case notificationTimes
         case runAtLogin
         case appVisibility
+        case googleCalendar
     }
 
     init(from decoder: Decoder) throws {
@@ -200,6 +207,7 @@ struct NotifierConfiguration: Codable, Equatable {
             notificationTimes: container.decodeIfPresent([NotificationTime].self, forKey: .notificationTimes) ?? [.defaultTime],
             runAtLogin: container.decodeIfPresent(Bool.self, forKey: .runAtLogin) ?? true,
             appVisibility: container.decodeIfPresent(AppVisibility.self, forKey: .appVisibility) ?? .menuBarAndDock,
+            googleCalendar: container.decodeIfPresent(GoogleCalendarConfiguration.self, forKey: .googleCalendar) ?? GoogleCalendarConfiguration(),
         )
     }
 
@@ -211,6 +219,7 @@ struct NotifierConfiguration: Codable, Equatable {
         try container.encode(notificationTimes, forKey: .notificationTimes)
         try container.encode(runAtLogin, forKey: .runAtLogin)
         try container.encode(appVisibility, forKey: .appVisibility)
+        try container.encode(googleCalendar, forKey: .googleCalendar)
     }
 }
 
@@ -252,6 +261,11 @@ enum NotifierError: LocalizedError {
     case unsupportedMacOS
     case launchAgentFailed
     case keychainAccessFailed(status: OSStatus)
+    case secretNotConfigured
+    case googleCalendarNotConfigured
+    case googleCalendarAuthenticationFailed
+    case googleCalendarOAuthDenied(String)
+    case googleCalendarRequestFailed
 
     var errorDescription: String? {
         switch self {
@@ -278,7 +292,7 @@ enum NotifierError: LocalizedError {
         case .employeeRequestFailed:
             return "The managed employee list could not be retrieved from Kakitangan."
         case .notificationPermissionDenied:
-            return "Allow notifications for Kakitangan Leave Notifier in System Settings."
+            return "Allow notifications for Kakitangan Companion in System Settings."
         case .unsupportedMacOS:
             return "Time Sensitive notifications require macOS 12 or later."
         case .launchAgentFailed:
@@ -286,6 +300,16 @@ enum NotifierError: LocalizedError {
         case let .keychainAccessFailed(status):
             let detail = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown keychain error."
             return "The keychain denied access (error \(status): \(detail))."
+        case .secretNotConfigured:
+            return "The secure token is not saved in Keychain."
+        case .googleCalendarNotConfigured:
+            return "Add a Google OAuth desktop client ID before connecting Calendar."
+        case .googleCalendarAuthenticationFailed:
+            return "Google Calendar authentication failed. Check the OAuth client and try again."
+        case let .googleCalendarOAuthDenied(reason):
+            return "Google Calendar was not connected: \(reason)."
+        case .googleCalendarRequestFailed:
+            return "Google Calendar meetings could not be retrieved."
         }
     }
 }

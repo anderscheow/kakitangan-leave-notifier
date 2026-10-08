@@ -109,9 +109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(
             systemSymbolName: "calendar.badge.clock",
-            accessibilityDescription: "Kakitangan Leave Notifier",
+            accessibilityDescription: "Kakitangan Companion",
         )
-        item.button?.toolTip = "Kakitangan Leave Notifier"
+        item.button?.toolTip = "Kakitangan Companion"
         item.menu = makeStatusMenu()
         statusItem = item
     }
@@ -119,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(
-            withTitle: "Open Leave Watch",
+            withTitle: "Open Kakitangan Companion",
             action: #selector(openLeaveWatch),
             keyEquivalent: "",
         )
@@ -135,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         )
         menu.addItem(.separator())
         menu.addItem(
-            withTitle: "Quit Kakitangan Leave Notifier",
+            withTitle: "Quit Kakitangan Companion",
             action: #selector(quit),
             keyEquivalent: "",
         )
@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             .environmentObject(model)
             .frame(minWidth: 680, minHeight: 620)
         let window = NSWindow(contentViewController: NSHostingController(rootView: contentView))
-        window.title = "Kakitangan Leave Notifier"
+        window.title = "Kakitangan Companion"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 760, height: 680))
         window.minSize = NSSize(width: 680, height: 620)

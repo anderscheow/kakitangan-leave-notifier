@@ -61,7 +61,7 @@ final class NotificationService {
         if report.leaves.isEmpty {
             let accountText = report.checkedAccountCount == 1 ? "account" : "accounts"
             try await add(
-                title: "Kakitangan Leave Watch",
+                title: "Kakitangan Companion",
                 body: "No configured employees across \(report.checkedAccountCount) \(accountText) start approved leave in the next \(report.daysAhead) days.",
             )
             return
@@ -84,7 +84,7 @@ final class NotificationService {
         }
         try await ensureAuthorizedForDelivery()
         try await add(
-            title: "Kakitangan Leave Watch",
+            title: "Kakitangan Companion",
             body: "Unable to check leave. Open the app to review its configuration.",
         )
     }
@@ -95,7 +95,7 @@ final class NotificationService {
         }
         try await ensureAuthorizedForDelivery()
         try await add(
-            title: "Kakitangan Leave Watch",
+            title: "Kakitangan Companion",
             body: "Time Sensitive notifications are configured correctly.",
         )
     }

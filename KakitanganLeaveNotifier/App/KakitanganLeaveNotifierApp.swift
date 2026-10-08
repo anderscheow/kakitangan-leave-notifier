@@ -32,7 +32,7 @@ struct KakitanganLeaveNotifierApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesCommand()
             }
-            CommandMenu("Leave Watch") {
+            CommandMenu("Kakitangan Companion") {
                 Button("Check Now") {
                     Task { await BackgroundCheckRunner.run() }
                 }

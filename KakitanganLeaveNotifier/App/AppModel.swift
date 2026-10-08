@@ -86,6 +86,11 @@ final class AppModel: ObservableObject {
     @Published var notificationTimes: [NotificationTime]
     @Published var runAtLogin: Bool
     @Published var appVisibility: AppVisibility
+    @Published var googleCalendar: GoogleCalendarConfiguration
+    @Published var calendarEvents: [GoogleCalendarEvent] = []
+    @Published var calendarLastRefreshDate: Date?
+    @Published var isConnectingGoogleCalendar: Bool = false
+    @Published var isRefreshingCalendar: Bool = false
     @Published var statusMessage: String = ""
     @Published var isChecking: Bool = false
     @Published var isRefreshing: Bool = false
@@ -112,6 +117,7 @@ final class AppModel: ObservableObject {
         notificationTimes = configuration.notificationTimes
         runAtLogin = configuration.runAtLogin
         appVisibility = configuration.appVisibility
+        googleCalendar = configuration.googleCalendar
         let scheduleInstalled = LaunchAgentService.isWeekdayScheduleInstalled
         isWeekdayScheduleInstalled = scheduleInstalled
         needsScheduleRefresh = scheduleInstalled && !LaunchAgentService.isScheduleCurrent(
@@ -201,6 +207,18 @@ final class AppModel: ObservableObject {
         hasNotificationTimes || runAtLogin
     }
 
+    var isGoogleCalendarConnected: Bool {
+        keychainStore.hasSecret(account: Self.googleRefreshTokenAccount)
+    }
+
+    var upcomingMeetingCount: Int {
+        calendarEvents.count
+    }
+
+    var googleCalendarOwnerLabel: String {
+        googleCalendar.ownerEmail.isEmpty ? "Not connected" : googleCalendar.ownerEmail
+    }
+
     var isOpenAtLoginEnabled: Bool {
         loginItemStatus == .enabled
     }
@@ -238,7 +256,7 @@ final class AppModel: ObservableObject {
             }
             screen = .dashboard
             statusMessage = !configuration.hasAutomatedCheck
-                ? "Settings saved. Automatic checks are disabled."
+                ? "Settings saved. Automatic leave checks are disabled."
                 : "Settings saved securely."
         } catch {
             statusMessage = error.localizedDescription
@@ -295,8 +313,8 @@ final class AppModel: ObservableObject {
             }
             refreshLoginItemStatus()
             statusMessage = enabled
-                ? "Kakitangan Leave Notifier was added to Open at Login."
-                : "Kakitangan Leave Notifier was removed from Open at Login."
+                ? "Kakitangan Companion was added to Open at Login."
+                : "Kakitangan Companion was removed from Open at Login."
         } catch {
             refreshLoginItemStatus()
             statusMessage = "macOS could not update Open at Login: \(error.localizedDescription)"
@@ -465,6 +483,18 @@ final class AppModel: ObservableObject {
         updateSelectedAccount { $0.password = password }
     }
 
+    func updateGoogleCalendarClientID(_ clientID: String) {
+        googleCalendar.clientID = clientID
+    }
+
+    func updateGoogleCalendarClientSecret(_ clientSecret: String) {
+        googleCalendar.clientSecret = clientSecret
+    }
+
+    func updateGoogleCalendarLookAheadDays(_ days: Int) {
+        googleCalendar.meetingLookAheadDays = min(max(days, 0), 365)
+    }
+
     private func updateSelectedAccount(_ update: (inout MonitoredAccount) -> Void) {
         guard let selectedAccountIndex else {
             return
@@ -584,6 +614,88 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func connectGoogleCalendar() async {
+        guard !isConnectingGoogleCalendar else {
+            return
+        }
+        guard googleCalendar.isConfigured else {
+            statusMessage = NotifierError.googleCalendarNotConfigured.localizedDescription
+            return
+        }
+        isConnectingGoogleCalendar = true
+        defer { isConnectingGoogleCalendar = false }
+
+        do {
+            let service = GoogleCalendarService()
+            let start = try await service.beginAuthorization(clientID: googleCalendar.clientID)
+            NSWorkspace.shared.open(start.authorizationURL)
+            let tokenSet = try await service.finishAuthorization(start: start, configuration: googleCalendar)
+            if let refreshToken = tokenSet.refreshToken {
+                try keychainStore.save(secret: refreshToken, account: Self.googleRefreshTokenAccount)
+            } else if !isGoogleCalendarConnected {
+                throw NotifierError.secretNotConfigured
+            }
+            let ownerEmail = try await service.fetchOwnerEmail(accessToken: tokenSet.accessToken)
+            googleCalendar.ownerEmail = ownerEmail
+            let configuration = try persistConfiguration(requiresPassword: false)
+            googleCalendar = configuration.googleCalendar
+            statusMessage = "Google Calendar connected for \(ownerEmail)."
+            await refreshCalendarEvents()
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
+    func refreshCalendarEvents() async {
+        guard !isRefreshingCalendar else {
+            return
+        }
+        guard googleCalendar.isConfigured else {
+            calendarEvents = []
+            return
+        }
+        isRefreshingCalendar = true
+        defer { isRefreshingCalendar = false }
+
+        do {
+            let refreshToken = try keychainStore.secret(account: Self.googleRefreshTokenAccount)
+            let service = GoogleCalendarService()
+            let tokenSet = try await service.refreshAccessToken(refreshToken: refreshToken, configuration: googleCalendar)
+            let ownerEmail = googleCalendar.ownerEmail.isEmpty
+                ? try await service.fetchOwnerEmail(accessToken: tokenSet.accessToken)
+                : googleCalendar.ownerEmail
+            if googleCalendar.ownerEmail != ownerEmail {
+                googleCalendar.ownerEmail = ownerEmail
+                _ = try persistConfiguration(requiresPassword: false)
+            }
+            calendarEvents = try await service.fetchEvents(
+                accessToken: tokenSet.accessToken,
+                ownerEmail: ownerEmail,
+                daysAhead: googleCalendar.meetingLookAheadDays,
+            )
+            calendarLastRefreshDate = Date()
+            statusMessage = ""
+        } catch NotifierError.secretNotConfigured {
+            calendarEvents = []
+            statusMessage = "Connect Google Calendar to show meetings."
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
+    func disconnectGoogleCalendar() {
+        do {
+            try keychainStore.deleteSecret(account: Self.googleRefreshTokenAccount)
+            googleCalendar.ownerEmail = ""
+            calendarEvents = []
+            calendarLastRefreshDate = nil
+            _ = try persistConfiguration(requiresPassword: false)
+            statusMessage = "Google Calendar disconnected."
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
     private static func monitoredEmails(from addresses: [String]) -> [MonitoredEmail] {
         addresses.map { MonitoredEmail(address: $0) }
     }
@@ -613,6 +725,7 @@ final class AppModel: ObservableObject {
             notificationTimes: notificationTimes,
             runAtLogin: runAtLogin,
             appVisibility: appVisibility,
+            googleCalendar: googleCalendar,
         )
     }
 
@@ -655,6 +768,7 @@ final class AppModel: ObservableObject {
         notificationTimes = configuration.notificationTimes
         runAtLogin = configuration.runAtLogin
         appVisibility = configuration.appVisibility
+        googleCalendar = configuration.googleCalendar
         _ = applyAppVisibility()
     }
 
@@ -675,6 +789,8 @@ final class AppModel: ObservableObject {
             userInfo: ["appVisibility": appVisibility.rawValue],
         )
     }
+
+    private static let googleRefreshTokenAccount = "google-calendar-refresh-token"
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()

@@ -23,6 +23,7 @@
 		A10000000000000000000015 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* AppUpdater.swift */; };
 		A10000000000000000000016 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000002 /* Sparkle */; };
 		A10000000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Assets.xcassets */; };
+		BFD7093A30777F13003A5454 /* GoogleCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD7093930777F12003A5454 /* GoogleCalendarService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +45,7 @@
 		A20000000000000000000016 /* KakitanganLeaveNotifier.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KakitanganLeaveNotifier.entitlements; sourceTree = "<group>"; };
 		A20000000000000000000018 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		A20000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BFD7093930777F12003A5454 /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +103,7 @@
 				A20000000000000000000008 /* LeaveCheckService.swift */,
 				A20000000000000000000009 /* NotificationService.swift */,
 				A20000000000000000000010 /* LaunchAgentService.swift */,
+				BFD7093930777F12003A5454 /* GoogleCalendarService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -195,12 +198,12 @@
 				Base,
 			);
 			mainGroup = A40000000000000000000001;
+			packageReferences = (
+				A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			productRefGroup = A40000000000000000000007 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			packageReferences = (
-				A90000000000000000000001 /* XCRemoteSwiftPackageReference \"Sparkle\" */,
-			);
 			targets = (
 				A50000000000000000000001 /* KakitanganLeaveNotifier */,
 			);
@@ -226,6 +229,7 @@
 				A10000000000000000000001 /* KakitanganLeaveNotifierApp.swift in Sources */,
 				A10000000000000000000002 /* AppDelegate.swift in Sources */,
 				A10000000000000000000003 /* AppModel.swift in Sources */,
+				BFD7093A30777F13003A5454 /* GoogleCalendarService.swift in Sources */,
 				A10000000000000000000004 /* ContentView.swift in Sources */,
 				A10000000000000000000005 /* ConfigurationStore.swift in Sources */,
 				A10000000000000000000006 /* KeychainStore.swift in Sources */,
@@ -239,25 +243,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.9.4;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		A90000000000000000000002 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A80000000000000000000001 /* Debug */ = {
@@ -356,6 +341,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A90000000000000000000002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A70000000000000000000001 /* Project object */;
 }

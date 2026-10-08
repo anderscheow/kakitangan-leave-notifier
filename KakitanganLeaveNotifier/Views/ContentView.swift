@@ -53,6 +53,11 @@ private struct SettingsView: View {
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
 
                 settingsTab {
+                    GoogleCalendarCard()
+                }
+                .tabItem { Label("Calendar", systemImage: "calendar.badge.clock") }
+
+                settingsTab {
                     PermissionCard()
                     NotificationTimesCard()
                     OnDemandChecksCard()
@@ -81,13 +86,13 @@ private struct SettingsView: View {
             AppMark()
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(isEditing ? "Edit your watch" : "Set up your leave watch")
+                Text(isEditing ? "Edit Kakitangan Companion" : "Set up Kakitangan Companion")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.leaveInk)
 
                 Text(isEditing
-                    ? "Update the account, people, time horizon, or weekday check times."
-                    : "A focused weekday briefing for the people whose leave affects your work.")
+                    ? "Update Kakitangan leave tracking, Google Calendar, notifications, or app behavior."
+                    : "Track Kakitangan leave and your Google meetings from one calm weekday briefing.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -154,12 +159,18 @@ private struct DashboardView: View {
                 MetricCard(title: "Accounts", value: "\(model.configuredAccountCount)", icon: "person.crop.circle")
                 MetricCard(title: "Watching", value: "\(model.monitoredEmployeeCount) people", icon: "person.2")
                 MetricCard(
-                    title: "Look ahead",
+                    title: "Leave horizon",
                     value: "\(model.daysAhead) days",
                     icon: "calendar",
                 )
+                MetricCard(
+                    title: "Meetings",
+                    value: model.isGoogleCalendarConnected ? "\(model.upcomingMeetingCount) upcoming" : "Not connected",
+                    icon: "video",
+                )
             }
 
+            MeetingCalendarCard()
             LeaveListCard()
 
             if !model.statusMessage.isEmpty {
@@ -168,6 +179,7 @@ private struct DashboardView: View {
         }
         .task {
             await model.refreshWatchList()
+            await model.refreshCalendarEvents()
         }
     }
 
@@ -176,10 +188,10 @@ private struct DashboardView: View {
             AppMark()
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("Leave watch")
+                Text("Kakitangan Companion")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.leaveInk)
-                Text("Your weekday leave briefing is ready when you are.")
+                Text("Leave coverage and meeting context, ready when you are.")
                     .foregroundStyle(.secondary)
             }
 
@@ -289,6 +301,131 @@ private struct DashboardView: View {
         return model.isWeekdayScheduleInstalled ? "Refresh schedule" : "Enable schedule"
     }
 
+}
+
+
+private struct MeetingCalendarCard: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        SurfaceCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Label("Meeting calendar", systemImage: "video")
+                        .font(.headline)
+                        .foregroundStyle(Color.leaveInk)
+                    Spacer(minLength: 8)
+                    if model.isRefreshingCalendar {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Button {
+                        Task { await model.refreshCalendarEvents() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(!model.isGoogleCalendarConnected || model.isRefreshingCalendar)
+                    .help("Refresh meetings")
+                    .accessibilityLabel("Refresh Google Calendar meetings")
+                }
+
+                Text(calendarSubtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                content
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if !model.isGoogleCalendarConnected {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Connect Google Calendar in Settings", systemImage: "calendar.badge.plus")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.leaveOrange)
+                Text("Meetings from the Gmail owner’s primary calendar will appear here after OAuth is connected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+        } else if model.calendarEvents.isEmpty, model.isRefreshingCalendar {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading meetings…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 8)
+        } else if model.calendarEvents.isEmpty {
+            Label("No upcoming meetings", systemImage: "checkmark.circle")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.leaveTeal)
+                .padding(.vertical, 8)
+        } else {
+            VStack(spacing: 8) {
+                ForEach(model.calendarEvents) { event in
+                    meetingRow(event)
+                }
+            }
+        }
+    }
+
+    private var calendarSubtitle: String {
+        if model.isGoogleCalendarConnected {
+            let refreshed = model.calendarLastRefreshDate.map { " Last refreshed \($0.formatted(.relative(presentation: .named)))." } ?? ""
+            return "Primary calendar for \(model.googleCalendarOwnerLabel), looking ahead \(model.googleCalendar.meetingLookAheadDays) days.\(refreshed)"
+        }
+        return "Connect the Gmail owner’s Google Calendar to see meetings that shape today’s availability."
+    }
+
+    private func meetingRow(_ event: GoogleCalendarEvent) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: event.isAllDay ? "calendar" : "video.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.leaveTeal)
+                .frame(width: 26, height: 26)
+                .background(Color.leaveTeal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(event.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.leaveInk)
+                    .lineLimit(2)
+                Text("\(event.timeRangeText) · \(event.participantCountText)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let location = event.location, !location.isEmpty {
+                    Text(location)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if let meetingLink = event.meetingLink {
+                Link(destination: meetingLink) {
+                    Image(systemName: "arrow.up.right")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel("Open \(event.title)")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
 }
 
 
@@ -837,6 +974,109 @@ private struct MonitoredEmailsCard: View {
 }
 
 
+private struct GoogleCalendarCard: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        SurfaceCard {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Google Calendar", systemImage: "calendar.badge.clock")
+                        .font(.headline)
+                        .foregroundStyle(Color.leaveInk)
+                    Text("Connect the Gmail owner’s primary calendar and show meetings beside Kakitangan leave.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("OAuth desktop client ID")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.leaveInk)
+                    TextField("1234567890-abc.apps.googleusercontent.com", text: Binding(
+                        get: { model.googleCalendar.clientID },
+                        set: { model.updateGoogleCalendarClientID($0) },
+                    ))
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Google OAuth desktop client ID")
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Client secret")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.leaveInk)
+                    SecureField("Optional for some desktop OAuth clients", text: Binding(
+                        get: { model.googleCalendar.clientSecret },
+                        set: { model.updateGoogleCalendarClientSecret($0) },
+                    ))
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Google OAuth client secret")
+                    Text("Use a Google Cloud OAuth client with Calendar API enabled. The refresh token is saved only in Keychain.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Stepper(
+                    "Meeting look ahead: \(model.googleCalendar.meetingLookAheadDays) days",
+                    value: Binding(
+                        get: { model.googleCalendar.meetingLookAheadDays },
+                        set: { model.updateGoogleCalendarLookAheadDays($0) },
+                    ),
+                    in: 0...365,
+                )
+                .accessibilityLabel("Google Calendar meeting look-ahead window")
+
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await model.connectGoogleCalendar() }
+                    } label: {
+                        Label(connectButtonTitle, systemImage: model.isGoogleCalendarConnected ? "arrow.triangle.2.circlepath" : "link")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.leaveTeal)
+                    .disabled(model.isConnectingGoogleCalendar || !model.googleCalendar.isConfigured)
+
+                    Button(role: .destructive) {
+                        model.disconnectGoogleCalendar()
+                    } label: {
+                        Label("Disconnect", systemImage: "xmark.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!model.isGoogleCalendarConnected)
+                }
+
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: model.isGoogleCalendarConnected ? "checkmark.circle.fill" : "info.circle")
+                        .foregroundStyle(model.isGoogleCalendarConnected ? Color.leaveTeal : Color.leaveOrange)
+                    Text(connectionDetail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+
+    private var connectButtonTitle: String {
+        if model.isConnectingGoogleCalendar {
+            return "Connecting…"
+        }
+        return model.isGoogleCalendarConnected ? "Reconnect Google" : "Connect Google"
+    }
+
+    private var connectionDetail: String {
+        if model.isGoogleCalendarConnected {
+            return "Connected as \(model.googleCalendarOwnerLabel). Meetings are read from the primary calendar only."
+        }
+        return "Create a Desktop app OAuth client in Google Cloud, paste the client ID here, then connect in your browser."
+    }
+}
+
+
 private struct NotificationTimesCard: View {
     @EnvironmentObject private var model: AppModel
 
@@ -960,7 +1200,7 @@ private struct LoginItemCard: View {
                     Spacer(minLength: 12)
 
                     Toggle(
-                        "Open Kakitangan Leave Notifier at login",
+                        "Open Kakitangan Companion at login",
                         isOn: Binding(
                             get: { model.isOpenAtLoginEnabled },
                             set: { model.setOpenAtLogin($0) },
@@ -969,7 +1209,7 @@ private struct LoginItemCard: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .disabled(!model.canConfigureOpenAtLogin)
-                    .accessibilityLabel("Open Kakitangan Leave Notifier at login")
+                    .accessibilityLabel("Open Kakitangan Companion at login")
                     .accessibilityHint("Adds or removes this app from the Open at Login list in System Settings.")
                 }
 
@@ -1026,11 +1266,11 @@ private struct LoginItemCard: View {
     private var statusDetail: String {
         switch model.loginItemStatus {
         case .enabled:
-            return "Kakitangan Leave Notifier appears in Open at Login and will open after you sign in."
+            return "Kakitangan Companion appears in Open at Login and will open after you sign in."
         case .disabled:
-            return "Turn this on to add Kakitangan Leave Notifier to Open at Login."
+            return "Turn this on to add Kakitangan Companion to Open at Login."
         case .requiresApproval:
-            return "macOS needs your approval. Open Login Items and enable Kakitangan Leave Notifier."
+            return "macOS needs your approval. Open Login Items and enable Kakitangan Companion."
         case .unavailable:
             return "Open at Login requires macOS 13 or later. Check at sign-in still works on this Mac."
         case .notFound:
@@ -1050,13 +1290,13 @@ private struct AppVisibilityCard: View {
                     Label("App visibility", systemImage: "macwindow")
                         .font(.headline)
                         .foregroundStyle(Color.leaveInk)
-                    Text("Choose where Kakitangan Leave Notifier stays available while you work. The change applies now; save setup to keep it.")
+                    Text("Choose where Kakitangan Companion stays available while you work. The change applies now; save setup to keep it.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 Picker(
-                    "Show Kakitangan Leave Notifier in",
+                    "Show Kakitangan Companion in",
                     selection: Binding(
                         get: { model.appVisibility },
                         set: { visibility in
@@ -1071,7 +1311,7 @@ private struct AppVisibilityCard: View {
                     Text("Dock only").tag(AppVisibility.dockOnly)
                 }
                 .pickerStyle(.segmented)
-                .accessibilityLabel("Show Kakitangan Leave Notifier in")
+                .accessibilityLabel("Show Kakitangan Companion in")
                 .accessibilityHint("Choose whether the app appears in the Menu Bar, the Dock, or both.")
 
                 HStack(alignment: .top, spacing: 10) {
@@ -1107,7 +1347,7 @@ private struct AppVisibilityCard: View {
         case .menuBarOnly:
             return "The Dock icon is hidden. Use the menu-bar icon to open Leave Watch, check now, or quit."
         case .dockOnly:
-            return "The menu-bar icon is hidden. Open Kakitangan Leave Notifier from the Dock."
+            return "The menu-bar icon is hidden. Open Kakitangan Companion from the Dock."
         }
     }
 }
@@ -1251,7 +1491,7 @@ private struct PermissionCard: View {
         case .notDetermined:
             return "You control when alerts appear. The prompt opens only after you choose Allow notifications."
         case .denied:
-            return "Enable notifications, Time Sensitive alerts, and Persistent alert style in System Settings → Notifications → Kakitangan Leave Notifier."
+            return "Enable notifications, Time Sensitive alerts, and Persistent alert style in System Settings → Notifications → Kakitangan Companion."
         case .unsupported:
             return "Update this Mac before enabling leave notifications."
         }
