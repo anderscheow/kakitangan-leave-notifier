@@ -1,0 +1,9 @@
+{
+  "id" : "a7912cfc-cd57-4845-929b-ffe550f41e24",
+  "targets" : [
+    {
+      "id" : "f9e3de1e-053c-47d6-9324-08cdec56085f",
+      "name" : "KakitanganLeaveNotifier"
+    }
+  ]
+}
