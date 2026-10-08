@@ -15,6 +15,7 @@ struct LeaveRecord: Decodable {
     let applicant: LeaveApplicant?
     let endDate: String
     let leaveType: LeaveType?
+    let period: LeavePeriod
     let startDate: String
     let status: String
 
@@ -22,8 +23,59 @@ struct LeaveRecord: Decodable {
         case applicant
         case endDate = "end_date"
         case leaveType = "leave_type"
+        case fullDay = "full_day"
+        case amOrPm
+        case duration
+        case halfDay = "half_day"
+        case period
+        case session
+        case leavePeriod = "leave_period"
+        case startHalf = "start_half"
+        case endHalf = "end_half"
+        case startPeriod = "start_period"
+        case endPeriod = "end_period"
         case startDate = "start_date"
         case status
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        applicant = try container.decodeIfPresent(LeaveApplicant.self, forKey: .applicant)
+        endDate = try container.decode(String.self, forKey: .endDate)
+        leaveType = try container.decodeIfPresent(LeaveType.self, forKey: .leaveType)
+        startDate = try container.decode(String.self, forKey: .startDate)
+        status = try container.decode(String.self, forKey: .status)
+        period = LeavePeriod(
+            fullDay: try container.decodeIfPresent(Bool.self, forKey: .fullDay),
+            amOrPm: try container.decodeIfPresent(Bool.self, forKey: .amOrPm),
+            rawValues: [
+                container.lossyString(forKey: .duration),
+                container.lossyString(forKey: .halfDay),
+                container.lossyString(forKey: .period),
+                container.lossyString(forKey: .session),
+                container.lossyString(forKey: .leavePeriod),
+                container.lossyString(forKey: .startHalf),
+                container.lossyString(forKey: .endHalf),
+                container.lossyString(forKey: .startPeriod),
+                container.lossyString(forKey: .endPeriod),
+            ],
+        )
+    }
+}
+
+
+private extension KeyedDecodingContainer where Key == LeaveRecord.CodingKeys {
+    func lossyString(forKey key: Key) -> String? {
+        if let value = try? decodeIfPresent(String.self, forKey: key) {
+            return value
+        }
+        if let value = try? decodeIfPresent(Bool.self, forKey: key) {
+            return value ? "half_day" : nil
+        }
+        if let value = try? decodeIfPresent(Int.self, forKey: key) {
+            return String(value)
+        }
+        return nil
     }
 }
 
@@ -43,6 +95,40 @@ struct LeaveApplicant: Decodable {
 
 struct LeaveType: Decodable {
     let name: String
+}
+
+
+enum LeavePeriod: String, Equatable {
+    case am = "AM"
+    case pm = "PM"
+    case fullDay = "Full day"
+
+    init(fullDay: Bool?, amOrPm: Bool?, rawValues: [String?]) {
+        if fullDay == true {
+            self = .fullDay
+            return
+        }
+        if fullDay == false, let amOrPm {
+            self = amOrPm ? .am : .pm
+            return
+        }
+
+        let normalizedValues = rawValues
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+
+        if normalizedValues.contains(where: { value in
+            value == "am" || value.contains("morning") || value.contains("first_half")
+        }) {
+            self = .am
+        } else if normalizedValues.contains(where: { value in
+            value == "pm" || value.contains("afternoon") || value.contains("second_half")
+        }) {
+            self = .pm
+        } else {
+            self = .fullDay
+        }
+    }
 }
 
 
@@ -87,14 +173,20 @@ struct ManagedEmployee: Decodable, Identifiable, Equatable {
 
 
 struct LeaveSummary: Equatable, Identifiable {
+    let accountEmail: String
     let name: String
     let email: String
     let startDate: Date
     let endDate: Date
     let leaveType: String
+    let period: LeavePeriod
 
     var id: String {
-        "\(email)|\(leaveType)|\(startDate.timeIntervalSince1970)|\(endDate.timeIntervalSince1970)"
+        "\(accountEmail)|\(email)|\(leaveType)|\(period.rawValue)|\(startDate.timeIntervalSince1970)|\(endDate.timeIntervalSince1970)"
+    }
+
+    var leaveTypeWithPeriod: String {
+        period == .fullDay ? leaveType : "\(leaveType) (\(period.rawValue))"
     }
 
     func remainingDaysLabel(from today: Date) -> String {
@@ -116,7 +208,7 @@ struct LeaveSummary: Equatable, Identifiable {
     /// leave starts no later than the day after the current one ends. Same leave type is required so the
     /// merged row keeps an accurate leave-type label.
     static func mergingContinuous(_ leaves: [LeaveSummary], calendar: Calendar = .current) -> [LeaveSummary] {
-        let grouped = Dictionary(grouping: leaves) { "\($0.email)|\($0.leaveType)" }
+        let grouped = Dictionary(grouping: leaves) { "\($0.accountEmail)|\($0.email)|\($0.leaveType)|\($0.period.rawValue)" }
         var merged: [LeaveSummary] = []
 
         for group in grouped.values {
@@ -132,11 +224,13 @@ struct LeaveSummary: Equatable, Identifiable {
                 ) ?? current.endDate
                 if calendar.startOfDay(for: next.startDate) <= dayAfterCurrentEnd {
                     current = LeaveSummary(
+                        accountEmail: current.accountEmail,
                         name: current.name,
                         email: current.email,
                         startDate: current.startDate,
                         endDate: max(current.endDate, next.endDate),
                         leaveType: current.leaveType,
+                        period: current.period,
                     )
                 } else {
                     merged.append(current)
@@ -155,6 +249,7 @@ struct LeaveReport {
     let leaves: [LeaveSummary]
     let daysAhead: Int
     let today: Date
+    let checkedAccountCount: Int
 }
 
 

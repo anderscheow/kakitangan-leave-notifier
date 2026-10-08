@@ -151,7 +151,7 @@ private struct DashboardView: View {
                 columns: [GridItem(.adaptive(minimum: 210), spacing: 16)],
                 spacing: 16,
             ) {
-                MetricCard(title: "Account", value: model.accountEmail, icon: "person.crop.circle")
+                MetricCard(title: "Accounts", value: "\(model.configuredAccountCount)", icon: "person.crop.circle")
                 MetricCard(title: "Watching", value: "\(model.monitoredEmployeeCount) people", icon: "person.2")
                 MetricCard(
                     title: "Look ahead",
@@ -365,7 +365,7 @@ private struct LeaveListCard: View {
                 Text(leave.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.leaveInk)
-                Text("\(leave.leaveType) · \(dateText(leave))")
+                Text("\(leave.leaveTypeWithPeriod) · \(dateText(leave)) · \(leave.accountEmail)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -379,7 +379,7 @@ private struct LeaveListCard: View {
         .padding(.vertical, 10)
         .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(leave.name), \(leave.leaveType), \(dateText(leave)), \(leave.remainingDaysLabel(from: today))")
+        .accessibilityLabel("\(leave.name), \(leave.leaveTypeWithPeriod), \(dateText(leave)), \(leave.accountEmail), \(leave.remainingDaysLabel(from: today))")
     }
 
     private func daysLeftBadge(_ leave: LeaveSummary, today: Date) -> some View {
@@ -464,19 +464,40 @@ private struct AccountCard: View {
     var body: some View {
         SurfaceCard {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 10) {
-                    Image(systemName: "person.crop.circle")
-                        .foregroundStyle(Color.leaveTeal)
-                    Text("Kakitangan account")
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Label("Kakitangan accounts", systemImage: "person.crop.circle")
                         .font(.headline)
                         .foregroundStyle(Color.leaveInk)
+                    Spacer()
+                    Text("\(model.configuredAccountCount)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.leaveTeal)
                 }
+
+                Picker("Account", selection: Binding(
+                    get: { model.selectedAccountID ?? model.accounts.first?.id },
+                    set: { id in
+                        if let id {
+                            model.selectAccount(id: id)
+                        }
+                    },
+                )) {
+                    ForEach(model.accounts) { account in
+                        Text(account.accountEmail.isEmpty ? "New account" : account.accountEmail)
+                            .tag(Optional(account.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityLabel("Selected Kakitangan account")
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Login email")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.leaveInk)
-                    TextField("name@g2g.com", text: $model.accountEmail)
+                    TextField("name@g2g.com", text: Binding(
+                        get: { model.selectedAccountEmail },
+                        set: { model.updateSelectedAccountEmail($0) },
+                    ))
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Kakitangan login email")
                 }
@@ -485,12 +506,32 @@ private struct AccountCard: View {
                     Text("Password")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.leaveInk)
-                    SecureField("Kakitangan password", text: $model.password)
+                    SecureField("Kakitangan password", text: Binding(
+                        get: { model.selectedAccount?.password ?? "" },
+                        set: { model.updateSelectedPassword($0) },
+                    ))
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Kakitangan password")
                     Text("Leave the password blank to keep the one already saved in Keychain.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        model.addAccount()
+                    } label: {
+                        Label("Add account", systemImage: "plus")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button(role: .destructive) {
+                        model.removeSelectedAccount()
+                    } label: {
+                        Label("Remove account", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.accounts.count <= 1)
                 }
             }
         }
@@ -528,7 +569,7 @@ private struct MonitoredEmailsCard: View {
                     .font(.headline)
                     .foregroundStyle(Color.leaveInk)
                 Spacer()
-                Text("\(model.monitoredEmployeeCount) selected")
+                Text("\(model.selectedAccountMonitoredEmployeeCount) selected")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -563,16 +604,16 @@ private struct MonitoredEmailsCard: View {
 
     @ViewBuilder
     private var pickerContent: some View {
-        if model.isLoadingEmployees && model.managedEmployees.isEmpty {
+        if model.isLoadingEmployees && (model.selectedAccount?.managedEmployees.isEmpty ?? true) {
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
                 Text("Loading employees…").foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
-        } else if let error = model.employeeLoadError, model.managedEmployees.isEmpty {
+        } else if let error = model.selectedAccount?.employeeLoadError, model.selectedAccount?.managedEmployees.isEmpty ?? true {
             errorState(error)
-        } else if model.managedEmployees.isEmpty {
+        } else if model.selectedAccount?.managedEmployees.isEmpty ?? true {
             emptyState("No managed employees found.")
         } else {
             let groups = model.employeesByDepartment(matching: searchText)
@@ -661,13 +702,13 @@ private struct MonitoredEmailsCard: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.leaveInk)
                 Spacer()
-                Text("\(model.monitoredEmployeeCount)")
+                Text("\(model.selectedAccountMonitoredEmployeeCount)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.leaveTeal)
-                    .accessibilityLabel("\(model.monitoredEmployeeCount) selected users")
+                    .accessibilityLabel("\(model.selectedAccountMonitoredEmployeeCount) selected users")
             }
 
-            if model.monitoredEmployeeCount == 0 {
+            if model.selectedAccountMonitoredEmployeeCount == 0 {
                 Text("No users selected yet.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -691,7 +732,7 @@ private struct MonitoredEmailsCard: View {
     }
 
     private var selectedManagedEmployees: [ManagedEmployee] {
-        model.managedEmployees
+        (model.selectedAccount?.managedEmployees ?? [])
             .filter { model.isMonitored($0.email) }
             .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }

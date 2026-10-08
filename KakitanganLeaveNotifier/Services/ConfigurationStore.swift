@@ -53,30 +53,69 @@ struct NotificationTime: Codable, Equatable, Hashable, Identifiable, Comparable 
 }
 
 
-struct NotifierConfiguration: Codable, Equatable {
+struct NotifierAccountConfiguration: Codable, Equatable, Identifiable {
+    let id: UUID
     let accountEmail: String
     let monitoredEmails: [String]
+
+    init(
+        id: UUID = UUID(),
+        accountEmail: String,
+        monitoredEmails: [String],
+    ) throws {
+        let normalizedAccountEmail = accountEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedMonitoredEmails = Array(Set(monitoredEmails.map { $0.lowercased() })).sorted()
+        guard normalizedAccountEmail.contains("@") else {
+            throw NotifierError.invalidAccountEmail
+        }
+        guard !normalizedMonitoredEmails.isEmpty, normalizedMonitoredEmails.allSatisfy({ $0.contains("@") }) else {
+            throw NotifierError.invalidMonitoredEmails
+        }
+
+        self.id = id
+        self.accountEmail = normalizedAccountEmail
+        self.monitoredEmails = normalizedMonitoredEmails
+    }
+
+    static let empty = NotifierAccountConfiguration(
+        uncheckedID: UUID(),
+        accountEmail: "",
+        monitoredEmails: [],
+    )
+
+    private init(uncheckedID: UUID, accountEmail: String, monitoredEmails: [String]) {
+        id = uncheckedID
+        self.accountEmail = accountEmail
+        self.monitoredEmails = monitoredEmails
+    }
+
+    var isComplete: Bool {
+        accountEmail.contains("@")
+            && !monitoredEmails.isEmpty
+            && monitoredEmails.allSatisfy { $0.contains("@") }
+    }
+}
+
+
+struct NotifierConfiguration: Codable, Equatable {
+    let accounts: [NotifierAccountConfiguration]
+    let selectedAccountID: UUID?
     let daysAhead: Int
     let notificationTimes: [NotificationTime]
     let runAtLogin: Bool
     let appVisibility: AppVisibility
 
     init(
-        accountEmail: String,
-        monitoredEmails: [String],
+        accounts: [NotifierAccountConfiguration],
+        selectedAccountID: UUID?,
         daysAhead: Int,
         notificationTimes: [NotificationTime] = [.defaultTime],
         runAtLogin: Bool = true,
         appVisibility: AppVisibility = .menuBarAndDock,
     ) throws {
-        let normalizedAccountEmail = accountEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedMonitoredEmails = Array(Set(monitoredEmails.map { $0.lowercased() })).sorted()
         let normalizedNotificationTimes = notificationTimes.sorted()
-        guard normalizedAccountEmail.contains("@") else {
-            throw NotifierError.invalidAccountEmail
-        }
-        guard !normalizedMonitoredEmails.isEmpty, normalizedMonitoredEmails.allSatisfy({ $0.contains("@") }) else {
-            throw NotifierError.invalidMonitoredEmails
+        guard !accounts.isEmpty, accounts.allSatisfy(\.isComplete) else {
+            throw NotifierError.invalidAccountConfiguration
         }
         guard (0...365).contains(daysAhead) else {
             throw NotifierError.invalidDaysAhead
@@ -85,8 +124,8 @@ struct NotifierConfiguration: Codable, Equatable {
             throw NotifierError.invalidNotificationTimes
         }
 
-        self.accountEmail = normalizedAccountEmail
-        self.monitoredEmails = normalizedMonitoredEmails
+        self.accounts = accounts
+        self.selectedAccountID = selectedAccountID.flatMap { id in accounts.contains { $0.id == id } ? id : nil } ?? accounts.first?.id
         self.daysAhead = daysAhead
         self.notificationTimes = normalizedNotificationTimes
         self.runAtLogin = runAtLogin
@@ -94,8 +133,8 @@ struct NotifierConfiguration: Codable, Equatable {
     }
 
     static let empty = NotifierConfiguration(
-        uncheckedAccountEmail: "",
-        monitoredEmails: [],
+        uncheckedAccounts: [.empty],
+        selectedAccountID: NotifierAccountConfiguration.empty.id,
         daysAhead: 7,
         notificationTimes: [.defaultTime],
         runAtLogin: true,
@@ -103,15 +142,15 @@ struct NotifierConfiguration: Codable, Equatable {
     )
 
     private init(
-        uncheckedAccountEmail: String,
-        monitoredEmails: [String],
+        uncheckedAccounts accounts: [NotifierAccountConfiguration],
+        selectedAccountID: UUID?,
         daysAhead: Int,
         notificationTimes: [NotificationTime],
         runAtLogin: Bool,
         appVisibility: AppVisibility,
     ) {
-        accountEmail = uncheckedAccountEmail
-        self.monitoredEmails = monitoredEmails
+        self.accounts = accounts
+        self.selectedAccountID = selectedAccountID
         self.daysAhead = daysAhead
         self.notificationTimes = notificationTimes
         self.runAtLogin = runAtLogin
@@ -119,9 +158,8 @@ struct NotifierConfiguration: Codable, Equatable {
     }
 
     var isComplete: Bool {
-        accountEmail.contains("@")
-            && !monitoredEmails.isEmpty
-            && monitoredEmails.allSatisfy { $0.contains("@") }
+        !accounts.isEmpty
+            && accounts.allSatisfy(\.isComplete)
             && (0...365).contains(daysAhead)
     }
 
@@ -130,6 +168,8 @@ struct NotifierConfiguration: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case accounts
+        case selectedAccountID
         case accountEmail
         case monitoredEmails
         case daysAhead
@@ -140,9 +180,22 @@ struct NotifierConfiguration: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let accounts: [NotifierAccountConfiguration]
+        let selectedAccountID: UUID?
+        if let savedAccounts = try container.decodeIfPresent([NotifierAccountConfiguration].self, forKey: .accounts) {
+            accounts = savedAccounts
+            selectedAccountID = try container.decodeIfPresent(UUID.self, forKey: .selectedAccountID)
+        } else {
+            let legacyAccount = try NotifierAccountConfiguration(
+                accountEmail: container.decode(String.self, forKey: .accountEmail),
+                monitoredEmails: container.decode([String].self, forKey: .monitoredEmails),
+            )
+            accounts = [legacyAccount]
+            selectedAccountID = legacyAccount.id
+        }
         try self.init(
-            accountEmail: container.decode(String.self, forKey: .accountEmail),
-            monitoredEmails: container.decode([String].self, forKey: .monitoredEmails),
+            accounts: accounts,
+            selectedAccountID: selectedAccountID,
             daysAhead: container.decode(Int.self, forKey: .daysAhead),
             notificationTimes: container.decodeIfPresent([NotificationTime].self, forKey: .notificationTimes) ?? [.defaultTime],
             runAtLogin: container.decodeIfPresent(Bool.self, forKey: .runAtLogin) ?? true,
@@ -152,8 +205,8 @@ struct NotifierConfiguration: Codable, Equatable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(accountEmail, forKey: .accountEmail)
-        try container.encode(monitoredEmails, forKey: .monitoredEmails)
+        try container.encode(accounts, forKey: .accounts)
+        try container.encode(selectedAccountID, forKey: .selectedAccountID)
         try container.encode(daysAhead, forKey: .daysAhead)
         try container.encode(notificationTimes, forKey: .notificationTimes)
         try container.encode(runAtLogin, forKey: .runAtLogin)
@@ -188,6 +241,7 @@ enum NotifierError: LocalizedError {
     case invalidMonitoredEmails
     case invalidDaysAhead
     case invalidNotificationTimes
+    case invalidAccountConfiguration
     case notificationTimesRequired
     case automatedCheckNotConfigured
     case passwordNotConfigured
@@ -209,6 +263,8 @@ enum NotifierError: LocalizedError {
             return "The look-ahead window must be between 0 and 365 days."
         case .invalidNotificationTimes:
             return "Notification times must be valid and cannot be duplicated."
+        case .invalidAccountConfiguration:
+            return "Add at least one complete Kakitangan account with people to monitor."
         case .notificationTimesRequired:
             return "Add at least one weekday notification time before enabling the schedule."
         case .automatedCheckNotConfigured:

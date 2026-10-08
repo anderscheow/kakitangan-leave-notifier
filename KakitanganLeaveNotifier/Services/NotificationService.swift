@@ -59,17 +59,18 @@ final class NotificationService {
         }
         try await ensureAuthorizedForDelivery()
         if report.leaves.isEmpty {
+            let accountText = report.checkedAccountCount == 1 ? "account" : "accounts"
             try await add(
                 title: "Kakitangan Leave Watch",
-                body: "No configured employees start approved leave in the next \(report.daysAhead) days.",
+                body: "No configured employees across \(report.checkedAccountCount) \(accountText) start approved leave in the next \(report.daysAhead) days.",
             )
             return
         }
         for (index, leave) in report.leaves.enumerated() {
             try await add(
                 title: "\(leave.name): \(leave.remainingDaysLabel(from: report.today))",
-                body: "\(leave.leaveType) • \(DateOnly.display(leave.startDate))–\(DateOnly.display(leave.endDate))",
-                threadIdentifier: leave.email,
+                body: "\(leave.leaveTypeWithPeriod) • \(DateOnly.display(leave.startDate))–\(DateOnly.display(leave.endDate)) • \(leave.accountEmail)",
+                threadIdentifier: "\(leave.accountEmail)-\(leave.email)",
             )
             if index < report.leaves.count - 1 {
                 try await Task.sleep(nanoseconds: throttleIntervalNanoseconds)

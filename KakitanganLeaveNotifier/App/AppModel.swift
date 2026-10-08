@@ -30,6 +30,32 @@ struct MonitoredEmail: Identifiable, Equatable {
 }
 
 
+struct MonitoredAccount: Identifiable, Equatable {
+    let id: UUID
+    var accountEmail: String
+    var password: String
+    var monitoredEmails: [MonitoredEmail]
+    var managedEmployees: [ManagedEmployee]
+    var employeeLoadError: String?
+
+    init(
+        id: UUID = UUID(),
+        accountEmail: String,
+        password: String = "",
+        monitoredEmails: [MonitoredEmail] = [],
+        managedEmployees: [ManagedEmployee] = [],
+        employeeLoadError: String? = nil,
+    ) {
+        self.id = id
+        self.accountEmail = accountEmail
+        self.password = password
+        self.monitoredEmails = monitoredEmails
+        self.managedEmployees = managedEmployees
+        self.employeeLoadError = employeeLoadError
+    }
+}
+
+
 extension Notification.Name {
     static let appVisibilityDidChange = Notification.Name("com.kakitangan.leave-notifier.app-visibility-did-change")
     static let openSettingsRequested = Notification.Name("com.kakitangan.leave-notifier.open-settings-requested")
@@ -54,9 +80,8 @@ func applyEffectiveActivationPolicy(for visibility: AppVisibility) -> Bool {
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published var accountEmail: String
-    @Published var password: String = ""
-    @Published var monitoredEmails: [MonitoredEmail]
+    @Published var accounts: [MonitoredAccount]
+    @Published var selectedAccountID: UUID?
     @Published var daysAhead: Int
     @Published var notificationTimes: [NotificationTime]
     @Published var runAtLogin: Bool
@@ -65,9 +90,7 @@ final class AppModel: ObservableObject {
     @Published var isChecking: Bool = false
     @Published var isRefreshing: Bool = false
     @Published private(set) var latestReport: LeaveReport?
-    @Published private(set) var managedEmployees: [ManagedEmployee] = []
     @Published var isLoadingEmployees: Bool = false
-    @Published var employeeLoadError: String?
     @Published var isInstallingSchedule: Bool = false
     @Published var isRequestingPermission: Bool = false
     @Published private(set) var screen: AppScreen
@@ -82,8 +105,9 @@ final class AppModel: ObservableObject {
 
     init() {
         let configuration = configurationStore.load()
-        accountEmail = configuration.accountEmail
-        monitoredEmails = Self.monitoredEmails(from: configuration.monitoredEmails)
+        let loadedAccounts = Self.monitoredAccounts(from: configuration.accounts)
+        accounts = loadedAccounts
+        selectedAccountID = configuration.selectedAccountID ?? loadedAccounts.first?.id
         daysAhead = configuration.daysAhead
         notificationTimes = configuration.notificationTimes
         runAtLogin = configuration.runAtLogin
@@ -94,7 +118,8 @@ final class AppModel: ObservableObject {
             times: configuration.notificationTimes,
             runAtLogin: configuration.runAtLogin,
         )
-        screen = configuration.isComplete && keychainStore.hasPassword(account: configuration.accountEmail)
+        let savedPasswordsReady = configuration.accounts.allSatisfy { KeychainStore().hasPassword(account: $0.accountEmail) }
+        screen = configuration.isComplete && savedPasswordsReady
             ? .dashboard
             : .setup
         _ = applyAppVisibility()
@@ -122,11 +147,44 @@ final class AppModel: ObservableObject {
     }
 
     var monitoredEmployeeCount: Int {
-        normalizedMonitoredEmails.count
+        accounts.reduce(0) { $0 + normalizedMonitoredEmails(for: $1).count }
+    }
+
+    var configuredAccountCount: Int {
+        accounts.filter { !$0.accountEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+    }
+
+    var selectedAccountIndex: Int? {
+        guard let selectedAccountID else {
+            return accounts.indices.first
+        }
+        return accounts.firstIndex { $0.id == selectedAccountID } ?? accounts.indices.first
+    }
+
+    var selectedAccount: MonitoredAccount? {
+        guard let selectedAccountIndex else {
+            return nil
+        }
+        return accounts[selectedAccountIndex]
+    }
+
+    var selectedAccountEmail: String {
+        selectedAccount?.accountEmail ?? ""
+    }
+
+    var selectedAccountMonitoredEmployeeCount: Int {
+        selectedAccount.map { normalizedMonitoredEmails(for: $0).count } ?? 0
     }
 
     var normalizedMonitoredEmails: [String] {
-        monitoredEmails
+        guard let selectedAccount else {
+            return []
+        }
+        return normalizedMonitoredEmails(for: selectedAccount)
+    }
+
+    private func normalizedMonitoredEmails(for account: MonitoredAccount) -> [String] {
+        account.monitoredEmails
             .map { $0.address.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
@@ -289,7 +347,7 @@ final class AppModel: ObservableObject {
     /// Loads the managed-employee list only if it hasn't been fetched yet. Used to populate the
     /// picker automatically when the settings screen appears without re-hitting the API each time.
     func loadManagedEmployeesIfNeeded() async {
-        guard managedEmployees.isEmpty, !isLoadingEmployees else {
+        guard let selectedAccount, selectedAccount.managedEmployees.isEmpty, !isLoadingEmployees else {
             return
         }
         await loadManagedEmployees()
@@ -302,31 +360,34 @@ final class AppModel: ObservableObject {
             return
         }
         isLoadingEmployees = true
-        employeeLoadError = nil
+        updateSelectedAccount { $0.employeeLoadError = nil }
         defer { isLoadingEmployees = false }
 
-        let account = accountEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let account = selectedAccountEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !account.isEmpty else {
-            employeeLoadError = NotifierError.invalidAccountEmail.localizedDescription
+            updateSelectedAccount { $0.employeeLoadError = NotifierError.invalidAccountEmail.localizedDescription }
             return
         }
         do {
-            let secret = password.isEmpty ? try keychainStore.password(account: account) : password
+            let secret = selectedAccount?.password.isEmpty == false ? selectedAccount?.password ?? "" : try keychainStore.password(account: account)
             let client = KakitanganAPIClient()
             let token = try await client.login(accountEmail: account, password: secret)
             let employees = try await client.fetchManagedEmployees(token: token)
-            managedEmployees = employees
-                .filter { !$0.isTerminated }
-                .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            updateSelectedAccount {
+                $0.managedEmployees = employees
+                    .filter { !$0.isTerminated }
+                    .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            }
         } catch {
-            employeeLoadError = error.localizedDescription
+            updateSelectedAccount { $0.employeeLoadError = error.localizedDescription }
         }
     }
 
     /// Active managed employees grouped by department, optionally filtered by a name/email query.
     func employeesByDepartment(matching query: String) -> [(department: String, employees: [ManagedEmployee])] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matches = needle.isEmpty ? managedEmployees : managedEmployees.filter {
+        let employees = selectedAccount?.managedEmployees ?? []
+        let matches = needle.isEmpty ? employees : employees.filter {
             $0.displayName.lowercased().contains(needle) || $0.email.lowercased().contains(needle)
         }
         return Dictionary(grouping: matches, by: \.departmentName)
@@ -336,7 +397,7 @@ final class AppModel: ObservableObject {
 
     func isMonitored(_ email: String) -> Bool {
         let target = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return monitoredEmails.contains { normalized($0.address) == target }
+        return selectedAccount?.monitoredEmails.contains { normalized($0.address) == target } ?? false
     }
 
     func setMonitored(_ email: String, _ isMonitored: Bool) {
@@ -348,17 +409,17 @@ final class AppModel: ObservableObject {
             guard !self.isMonitored(target) else {
                 return
             }
-            monitoredEmails.append(MonitoredEmail(address: target))
+            updateSelectedAccount { $0.monitoredEmails.append(MonitoredEmail(address: target)) }
         } else {
             let lowered = target.lowercased()
-            monitoredEmails.removeAll { normalized($0.address) == lowered }
+            updateSelectedAccount { $0.monitoredEmails.removeAll { normalized($0.address) == lowered } }
         }
     }
 
     /// Monitored emails that don't map to a managed employee — i.e. people added manually. Keeps the
     /// picker and the manual fallback from showing the same person twice.
     var customMonitoredEmails: [String] {
-        let managed = Set(managedEmployees.map { $0.email.lowercased() })
+        let managed = Set((selectedAccount?.managedEmployees ?? []).map { $0.email.lowercased() })
         return normalizedMonitoredEmails
             .filter { !managed.contains($0.lowercased()) }
             .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
@@ -366,6 +427,49 @@ final class AppModel: ObservableObject {
 
     private func normalized(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    func selectAccount(id: UUID) {
+        guard accounts.contains(where: { $0.id == id }) else {
+            return
+        }
+        selectedAccountID = id
+    }
+
+    func addAccount() {
+        let account = MonitoredAccount(accountEmail: "")
+        accounts.append(account)
+        selectedAccountID = account.id
+        statusMessage = "New account added. Enter its login details and people to monitor."
+    }
+
+    func removeSelectedAccount() {
+        guard accounts.count > 1, let selectedAccountIndex else {
+            statusMessage = "Keep at least one Kakitangan account."
+            return
+        }
+        accounts.remove(at: selectedAccountIndex)
+        selectedAccountID = accounts[min(selectedAccountIndex, accounts.count - 1)].id
+        statusMessage = "Account removed."
+    }
+
+    func updateSelectedAccountEmail(_ email: String) {
+        updateSelectedAccount {
+            $0.accountEmail = email
+            $0.managedEmployees = []
+            $0.employeeLoadError = nil
+        }
+    }
+
+    func updateSelectedPassword(_ password: String) {
+        updateSelectedAccount { $0.password = password }
+    }
+
+    private func updateSelectedAccount(_ update: (inout MonitoredAccount) -> Void) {
+        guard let selectedAccountIndex else {
+            return
+        }
+        update(&accounts[selectedAccountIndex])
     }
 
     func addNotificationTime() {
@@ -421,8 +525,11 @@ final class AppModel: ObservableObject {
 
         do {
             let configuration = try makeConfiguration()
-            let password = try keychainStore.password(account: configuration.accountEmail)
-            latestReport = try await LeaveCheckService(configuration: configuration, password: password).check()
+            let passwords = try passwords(for: configuration.accounts)
+            latestReport = try await LeaveCheckService(
+                configuration: configuration,
+                password: passwords[configuration.accounts[0].accountEmail] ?? "",
+            ).check(passwords: passwords)
             statusMessage = ""
         } catch {
             statusMessage = error.localizedDescription
@@ -435,8 +542,11 @@ final class AppModel: ObservableObject {
 
         do {
             let configuration = try persistConfiguration(requiresPassword: true)
-            let password = try keychainStore.password(account: configuration.accountEmail)
-            let report = try await LeaveCheckService(configuration: configuration, password: password).check()
+            let passwords = try passwords(for: configuration.accounts)
+            let report = try await LeaveCheckService(
+                configuration: configuration,
+                password: passwords[configuration.accounts[0].accountEmail] ?? "",
+            ).check(passwords: passwords)
             latestReport = report
             statusMessage = "Checked successfully: \(report.leaves.count) matching leave record(s)."
             // Deliver off the UI critical path: the 1s throttle between multiple alerts must not
@@ -478,11 +588,27 @@ final class AppModel: ObservableObject {
         addresses.map { MonitoredEmail(address: $0) }
     }
 
+    private static func monitoredAccounts(from accounts: [NotifierAccountConfiguration]) -> [MonitoredAccount] {
+        accounts.map {
+            MonitoredAccount(
+                id: $0.id,
+                accountEmail: $0.accountEmail,
+                monitoredEmails: monitoredEmails(from: $0.monitoredEmails),
+            )
+        }
+    }
+
     private func makeConfiguration() throws -> NotifierConfiguration {
-        let emails = normalizedMonitoredEmails.map { $0.lowercased() }
+        let accountConfigurations = try accounts.map { account in
+            try NotifierAccountConfiguration(
+                id: account.id,
+                accountEmail: account.accountEmail,
+                monitoredEmails: normalizedMonitoredEmails(for: account).map { $0.lowercased() },
+            )
+        }
         return try NotifierConfiguration(
-            accountEmail: accountEmail,
-            monitoredEmails: emails,
+            accounts: accountConfigurations,
+            selectedAccountID: selectedAccountID,
             daysAhead: daysAhead,
             notificationTimes: notificationTimes,
             runAtLogin: runAtLogin,
@@ -496,12 +622,26 @@ final class AppModel: ObservableObject {
 
     private func persistConfiguration(requiresPassword: Bool) throws -> NotifierConfiguration {
         let configuration = try makeConfiguration()
-        if requiresPassword && password.isEmpty && !keychainStore.hasPassword(account: configuration.accountEmail) {
-            throw NotifierError.passwordNotConfigured
+        if requiresPassword {
+            for account in accounts {
+                let normalizedEmail = account.accountEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if account.password.isEmpty && !keychainStore.hasPassword(account: normalizedEmail) {
+                    throw NotifierError.passwordNotConfigured
+                }
+            }
         }
-        if !password.isEmpty {
-            try keychainStore.save(password: password, account: configuration.accountEmail)
-            password = ""
+        for account in accounts where !account.password.isEmpty {
+            let normalizedEmail = account.accountEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            try keychainStore.save(password: account.password, account: normalizedEmail)
+        }
+        accounts = accounts.map {
+            MonitoredAccount(
+                id: $0.id,
+                accountEmail: $0.accountEmail,
+                monitoredEmails: $0.monitoredEmails,
+                managedEmployees: $0.managedEmployees,
+                employeeLoadError: $0.employeeLoadError,
+            )
         }
         try configurationStore.save(configuration)
         return configuration
@@ -509,14 +649,19 @@ final class AppModel: ObservableObject {
 
     private func loadSavedConfiguration() {
         let configuration = configurationStore.load()
-        accountEmail = configuration.accountEmail
-        monitoredEmails = Self.monitoredEmails(from: configuration.monitoredEmails)
+        accounts = Self.monitoredAccounts(from: configuration.accounts)
+        selectedAccountID = configuration.selectedAccountID ?? accounts.first?.id
         daysAhead = configuration.daysAhead
         notificationTimes = configuration.notificationTimes
         runAtLogin = configuration.runAtLogin
         appVisibility = configuration.appVisibility
         _ = applyAppVisibility()
-        password = ""
+    }
+
+    private func passwords(for accounts: [NotifierAccountConfiguration]) throws -> [String: String] {
+        try Dictionary(uniqueKeysWithValues: accounts.map { account in
+            (account.accountEmail, try keychainStore.password(account: account.accountEmail))
+        })
     }
 
     private func applyAppVisibility() -> Bool {
