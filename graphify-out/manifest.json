@@ -1,0 +1,202 @@
+{
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/App/AppUpdater.swift": {
+    "mtime": 1784193838.2624679,
+    "ast_hash": "5eeb64948446ff2e32264cffe5aa388a",
+    "semantic_hash": "5eeb64948446ff2e32264cffe5aa388a"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/App/AppModel.swift": {
+    "mtime": 1791445117.7435336,
+    "ast_hash": "eec16df32a5d272ae6b3cbbc7b3b5583",
+    "semantic_hash": "eec16df32a5d272ae6b3cbbc7b3b5583"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/App/KakitanganLeaveNotifierApp.swift": {
+    "mtime": 1791445107.7996025,
+    "ast_hash": "a277407b7676169a245773aaf241f60c",
+    "semantic_hash": "a277407b7676169a245773aaf241f60c"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/App/AppDelegate.swift": {
+    "mtime": 1791445107.9831097,
+    "ast_hash": "85c1abbb4d6359813f2d15e81d159677",
+    "semantic_hash": "85c1abbb4d6359813f2d15e81d159677"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/Contents.json": {
+    "mtime": 1784188892.9061444,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": "9deb2ada1cc834bbebf8bbad9c8978a1"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json": {
+    "mtime": 1784188898.530911,
+    "ast_hash": "cb25d8883ad1378004ad7385c2ca267d",
+    "semantic_hash": "cb25d8883ad1378004ad7385c2ca267d"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Models/LeaveModels.swift": {
+    "mtime": 1791427228.6536596,
+    "ast_hash": "5423f7835b8bfa533c55d194142be5f8",
+    "semantic_hash": "5423f7835b8bfa533c55d194142be5f8"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Views/ContentView.swift": {
+    "mtime": 1791445117.9632432,
+    "ast_hash": "e76c094b18e9e0f269e7ae20c7f2ba6e",
+    "semantic_hash": "e76c094b18e9e0f269e7ae20c7f2ba6e"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Services/GoogleCalendarService.swift": {
+    "mtime": 1791445138.2011478,
+    "ast_hash": "aece59ccae34f7cc56472f847e20dd81",
+    "semantic_hash": "aece59ccae34f7cc56472f847e20dd81"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Services/NotificationService.swift": {
+    "mtime": 1791445117.9777665,
+    "ast_hash": "d2b8e73a6977608477ef43d01190aa53",
+    "semantic_hash": "d2b8e73a6977608477ef43d01190aa53"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Services/LeaveCheckService.swift": {
+    "mtime": 1791426236.723714,
+    "ast_hash": "747963ffeeee18ccef79d46ee0a58168",
+    "semantic_hash": "747963ffeeee18ccef79d46ee0a58168"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Services/LaunchAgentService.swift": {
+    "mtime": 1784251796.9891064,
+    "ast_hash": "f2f0a374f86ddc3dcbcd0e765bdea4a4",
+    "semantic_hash": "f2f0a374f86ddc3dcbcd0e765bdea4a4"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Services/KakitanganAPIClient.swift": {
+    "mtime": 1784259016.1154885,
+    "ast_hash": "bcbc45b7e2fcdfee230a0c8507b04873",
+    "semantic_hash": "bcbc45b7e2fcdfee230a0c8507b04873"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Services/KeychainStore.swift": {
+    "mtime": 1791444906.1517453,
+    "ast_hash": "ec80091356c6d0fd18ed001cb417a3ce",
+    "semantic_hash": "ec80091356c6d0fd18ed001cb417a3ce"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Services/ConfigurationStore.swift": {
+    "mtime": 1791445117.9708662,
+    "ast_hash": "a7acdbfd2f2b4454e8060ebe7aef6109",
+    "semantic_hash": "a7acdbfd2f2b4454e8060ebe7aef6109"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier.xcodeproj/xcshareddata/xcodecloud/manifest.json": {
+    "mtime": 1791428219.573399,
+    "ast_hash": "b5343f5277864cdf20365a15229d30c7",
+    "semantic_hash": "b5343f5277864cdf20365a15229d30c7"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/ci_scripts/ci_post_xcodebuild.sh": {
+    "mtime": 1791428219.5740304,
+    "ast_hash": "4e30e23175d7eeb61db05a7b90232a5d",
+    "semantic_hash": "4e30e23175d7eeb61db05a7b90232a5d"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/ci_scripts/ci_pre_xcodebuild.sh": {
+    "mtime": 1791428219.5743718,
+    "ast_hash": "360226ec77f974970d2d138d8ccfb1c6",
+    "semantic_hash": "360226ec77f974970d2d138d8ccfb1c6"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/ci_scripts/xcode-cloud-macos-release.sh": {
+    "mtime": 1791428219.5747173,
+    "ast_hash": "e97f7ace23ece5099e92bdd61963ed55",
+    "semantic_hash": "e97f7ace23ece5099e92bdd61963ed55"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/README.md": {
+    "mtime": 1784597221.561083,
+    "ast_hash": "dc838c9e89e39e0fbc7a810f029b3add",
+    "semantic_hash": "dc838c9e89e39e0fbc7a810f029b3add"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_32x32@2x.png": {
+    "mtime": 1784175204.9674082,
+    "ast_hash": "e12ef1e3f86d209959598017426f1a2a",
+    "semantic_hash": "e12ef1e3f86d209959598017426f1a2a"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_128x128.png": {
+    "mtime": 1784175205.003486,
+    "ast_hash": "814357b4ba19da7cc85977ec78b39e57",
+    "semantic_hash": "814357b4ba19da7cc85977ec78b39e57"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_256x256@2x.png": {
+    "mtime": 1784175205.1291356,
+    "ast_hash": "10d0076b7c11dd27a01a9566cc1d4b69",
+    "semantic_hash": "10d0076b7c11dd27a01a9566cc1d4b69"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_32x32.png": {
+    "mtime": 1784175204.9302666,
+    "ast_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1",
+    "semantic_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_512x512.png": {
+    "mtime": 1784175205.1766655,
+    "ast_hash": "10d0076b7c11dd27a01a9566cc1d4b69",
+    "semantic_hash": "10d0076b7c11dd27a01a9566cc1d4b69"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_16x16.png": {
+    "mtime": 1784175204.8611395,
+    "ast_hash": "d66e80b04d37825b20c3c5bd26117c31",
+    "semantic_hash": "d66e80b04d37825b20c3c5bd26117c31"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_16x16@2x.png": {
+    "mtime": 1784175204.89722,
+    "ast_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1",
+    "semantic_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_128x128@2x.png": {
+    "mtime": 1784175205.0424674,
+    "ast_hash": "8152bbb9983648da7aaed82db5d765c9",
+    "semantic_hash": "8152bbb9983648da7aaed82db5d765c9"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_512x512@2x.png": {
+    "mtime": 1784175205.2571046,
+    "ast_hash": "0a343ad13e37269a61234a75839c620b",
+    "semantic_hash": "0a343ad13e37269a61234a75839c620b"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/AppIcon.iconset/icon_256x256.png": {
+    "mtime": 1784175205.0811338,
+    "ast_hash": "8152bbb9983648da7aaed82db5d765c9",
+    "semantic_hash": "8152bbb9983648da7aaed82db5d765c9"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_32x32@2x.png": {
+    "mtime": 1784188887.8705764,
+    "ast_hash": "e12ef1e3f86d209959598017426f1a2a",
+    "semantic_hash": "e12ef1e3f86d209959598017426f1a2a"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128.png": {
+    "mtime": 1784188887.858852,
+    "ast_hash": "814357b4ba19da7cc85977ec78b39e57",
+    "semantic_hash": "814357b4ba19da7cc85977ec78b39e57"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_256x256@2x.png": {
+    "mtime": 1784188887.867213,
+    "ast_hash": "10d0076b7c11dd27a01a9566cc1d4b69",
+    "semantic_hash": "10d0076b7c11dd27a01a9566cc1d4b69"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_32x32.png": {
+    "mtime": 1784188887.8689282,
+    "ast_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1",
+    "semantic_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_512x512.png": {
+    "mtime": 1784188887.8722305,
+    "ast_hash": "10d0076b7c11dd27a01a9566cc1d4b69",
+    "semantic_hash": "10d0076b7c11dd27a01a9566cc1d4b69"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_16x16.png": {
+    "mtime": 1784188887.8614902,
+    "ast_hash": "d66e80b04d37825b20c3c5bd26117c31",
+    "semantic_hash": "d66e80b04d37825b20c3c5bd26117c31"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_16x16@2x.png": {
+    "mtime": 1784188887.8632457,
+    "ast_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1",
+    "semantic_hash": "11d409b3a73c7dbe0ee8b4fe56d6ebf1"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png": {
+    "mtime": 1784188887.860331,
+    "ast_hash": "8152bbb9983648da7aaed82db5d765c9",
+    "semantic_hash": "8152bbb9983648da7aaed82db5d765c9"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png": {
+    "mtime": 1784188887.8767755,
+    "ast_hash": "0a343ad13e37269a61234a75839c620b",
+    "semantic_hash": "0a343ad13e37269a61234a75839c620b"
+  },
+  "/Users/anderscheow/Documents/KakitanganLeaveNotifier/KakitanganLeaveNotifier/Resources/Assets.xcassets/AppIcon.appiconset/icon_256x256.png": {
+    "mtime": 1784188887.8655722,
+    "ast_hash": "8152bbb9983648da7aaed82db5d765c9",
+    "semantic_hash": "8152bbb9983648da7aaed82db5d765c9"
+  }
+}
