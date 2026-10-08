@@ -215,17 +215,40 @@ jobs:
       - name: Generate Sparkle appcast
         env:
           SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.release.outputs.version }}"
           UPDATE_DIRECTORY="$RUNNER_TEMP/updates"
           UPDATE_ARCHIVE="$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip"
+          RELEASE_NOTES="$UPDATE_DIRECTORY/KakitanganLeaveNotifier-$VERSION.html"
           SPARKLE_GENERATE_APPC="$RUNNER_TEMP/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
           DOWNLOAD_URL_PREFIX="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/"
 
           mkdir -p "$UPDATE_DIRECTORY"
           curl --fail --location "$APPCAST_URL" --output "$UPDATE_DIRECTORY/appcast.xml" || rm -f "$UPDATE_DIRECTORY/appcast.xml"
           cp "$UPDATE_ARCHIVE" "$UPDATE_DIRECTORY/"
+          RELEASE_NOTES_BODY="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            --method POST \
+            -f tag_name="$GITHUB_REF_NAME" \
+            --jq .body)"
+          RELEASE_NOTES_BODY="$RELEASE_NOTES_BODY" python3 - <<'PY' > "$RELEASE_NOTES"
+          import html
+          import os
+
+          body = os.environ.get("RELEASE_NOTES_BODY", "").strip()
+          if not body:
+              body = "See the GitHub release page for details."
+
+          print("<!doctype html>")
+          print("<html><head><meta charset=\"utf-8\"><title>Release Notes</title></head>")
+          print("<body>")
+          print("<h1>Kakitangan Leave Notifier Release Notes</h1>")
+          print("<pre style=\"white-space: pre-wrap; font: 13px -apple-system, BlinkMacSystemFont, sans-serif;\">")
+          print(html.escape(body))
+          print("</pre>")
+          print("</body></html>")
+          PY
           printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" | "$SPARKLE_GENERATE_APPC" \
             --account "$SPARKLE_ACCOUNT" \
             --ed-key-file - \
@@ -245,6 +268,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.zip" \
             "$RUNNER_TEMP/release/KakitanganLeaveNotifier-$VERSION.pkg" \
+            "$RUNNER_TEMP/updates/KakitanganLeaveNotifier-$VERSION.html" \
             "$RUNNER_TEMP/updates/appcast.xml#appcast.xml" \
             --title "Kakitangan Leave Notifier $VERSION" \
             --generate-notes
