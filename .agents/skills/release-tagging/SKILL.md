@@ -14,7 +14,7 @@ Pushing a `vX.Y.Z` tag triggers **Release macOS app** (`.github/workflows/releas
 1. Derives the version from the tag (`vX.Y.Z` → `X.Y.Z`) and **fails unless it matches `MAJOR.MINOR.PATCH`**. The build number is the workflow run number.
 2. Archives a Release build signed with the Developer ID Application certificate (hardened runtime), injecting `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from the tag — **do not bump the version in `project.pbxproj`; the tag drives it.**
 3. Notarizes and staples the app, then builds a signed + notarized `.pkg` and a Sparkle `.zip`.
-4. Publishes a GitHub Release `Kakitangan Leave Notifier X.Y.Z` with the `.zip` and `.pkg` attached (`--generate-notes` fills notes from commits).
+4. Publishes a GitHub Release `Kakitangan Leave Notifier X.Y.Z` with the `.zip` and `.pkg` attached (notes come from the tag body, else generated from commits).
 5. Regenerates the Sparkle **appcast** (EdDSA-signed with `SPARKLE_EDDSA_PRIVATE_KEY`, keeping the newest 3 versions) and deploys it to GitHub Pages at the `SUFeedURL`.
 
 Step 5 is what makes the **updater** work: existing installs poll
@@ -44,10 +44,11 @@ Semantic versioning: **MAJOR** for breaking or behaviour changes users must know
 
 State the consequence and get explicit approval before pushing: **pushing the tag immediately starts signing, notarization, a public GitHub Release, and an appcast deploy that offers the update to every existing install.**
 
-The GitHub Release notes come from `--generate-notes`, so the tag message is optional:
+The annotated tag's **body** (everything after the first line) becomes the release notes for both the GitHub Release and the Sparkle updater. If the body is empty, the workflow falls back to GitHub's generated notes. Write notes to a file and use `--cleanup=verbatim` so Markdown `#` headings are not stripped as comments:
 
 ```bash
-git tag -a "vX.Y.Z" -m "Kakitangan Leave Notifier X.Y.Z"
+printf 'Kakitangan Leave Notifier X.Y.Z\n\n## Highlights\n- ...\n' > /tmp/notes.md
+git tag -a --cleanup=verbatim -F /tmp/notes.md "vX.Y.Z"
 git push origin "vX.Y.Z"
 ```
 
