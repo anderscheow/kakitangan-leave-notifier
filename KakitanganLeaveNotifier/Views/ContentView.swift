@@ -41,6 +41,8 @@ private struct SettingsView: View {
 
     let isEditing: Bool
 
+    @State private var selectedSection: SettingsSection = .account
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -48,17 +50,19 @@ private struct SettingsView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 18)
 
-            TabView {
+            TabView(selection: $selectedSection) {
                 settingsTab {
                     AccountCard()
                     MonitoredEmailsCard()
                 }
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                .tag(SettingsSection.account)
 
                 settingsTab {
                     GoogleCalendarCard()
                 }
                 .tabItem { Label("Calendar", systemImage: "calendar.badge.clock") }
+                .tag(SettingsSection.calendar)
 
                 settingsTab {
                     PermissionCard()
@@ -66,6 +70,7 @@ private struct SettingsView: View {
                     OnDemandChecksCard()
                 }
                 .tabItem { Label("Notifications", systemImage: "bell") }
+                .tag(SettingsSection.notifications)
 
                 settingsTab {
                     LoginItemCard()
@@ -73,7 +78,11 @@ private struct SettingsView: View {
                     UpdatesCard()
                 }
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(SettingsSection.general)
             }
+            // The AppKit tab strip measures its segment labels mid-animation and
+            // collapses them until clicked, so keep the screen-switch spring out of it.
+            .animation(nil, value: model.screen)
             .padding(.horizontal, 20)
 
             footer
@@ -147,6 +156,14 @@ private struct SettingsView: View {
 }
 
 
+private enum SettingsSection: Hashable {
+    case account
+    case calendar
+    case notifications
+    case general
+}
+
+
 private enum DashboardSection: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case meetings = "Meetings"
@@ -169,6 +186,8 @@ private struct DashboardView: View {
 
     let width: CGFloat
 
+    @State private var selectedSection: DashboardSection = .overview
+
     private var isCompact: Bool {
         width < 720
     }
@@ -177,19 +196,24 @@ private struct DashboardView: View {
         VStack(alignment: .leading, spacing: 24) {
             DashboardHeader(isCompact: isCompact)
 
-            TabView {
+            TabView(selection: $selectedSection) {
                 DashboardOverview(isCompact: isCompact)
                     .padding(20)
-                    .tabItem { Label("Overview", systemImage: DashboardSection.overview.icon) }
+                    .tabItem { Label(DashboardSection.overview.rawValue, systemImage: DashboardSection.overview.icon) }
+                    .tag(DashboardSection.overview)
 
                 MeetingCalendarCard()
                     .padding(20)
-                    .tabItem { Label("Meetings", systemImage: DashboardSection.meetings.icon) }
+                    .tabItem { Label(DashboardSection.meetings.rawValue, systemImage: DashboardSection.meetings.icon) }
+                    .tag(DashboardSection.meetings)
 
                 LeaveListCard()
                     .padding(20)
-                    .tabItem { Label("Leave", systemImage: DashboardSection.leave.icon) }
+                    .tabItem { Label(DashboardSection.leave.rawValue, systemImage: DashboardSection.leave.icon) }
+                    .tag(DashboardSection.leave)
             }
+            // See SettingsView: keep the screen-switch spring out of the AppKit tab strip.
+            .animation(nil, value: model.screen)
             .frame(maxWidth: .infinity, alignment: .topLeading)
 
             if !model.statusMessage.isEmpty {
