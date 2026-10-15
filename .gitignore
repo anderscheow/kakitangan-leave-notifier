@@ -13,3 +13,6 @@ sparkle_ed25519_private_key*
 __pycache__/
 *.pyc
 
+# Firebase Hosting deploy cache
+website/.firebase/
+

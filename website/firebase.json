@@ -3,7 +3,7 @@
     "target": "companion",
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "cleanUrls": true,
+    "cleanUrls": false,
     "trailingSlash": false,
     "headers": [
       {
