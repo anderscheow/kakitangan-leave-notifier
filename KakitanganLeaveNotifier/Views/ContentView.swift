@@ -50,39 +50,32 @@ private struct SettingsView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 18)
 
-            TabView(selection: $selectedSection) {
-                settingsTab {
-                    AccountCard()
-                    MonitoredEmailsCard()
+            SectionTabView(selection: $selectedSection) { section in
+                switch section {
+                case .account:
+                    settingsTab {
+                        AccountCard()
+                        MonitoredEmailsCard()
+                    }
+                case .calendar:
+                    settingsTab {
+                        GoogleCalendarCard()
+                    }
+                case .notifications:
+                    settingsTab {
+                        PermissionCard()
+                        NotificationTimesCard()
+                        OnDemandChecksCard()
+                    }
+                case .general:
+                    settingsTab {
+                        LoginItemCard()
+                        AppVisibilityCard()
+                        UpdatesCard()
+                    }
                 }
-                .tabItem { Label("Account", systemImage: "person.crop.circle") }
-                .tag(SettingsSection.account)
-
-                settingsTab {
-                    GoogleCalendarCard()
-                }
-                .tabItem { Label("Calendar", systemImage: "calendar.badge.clock") }
-                .tag(SettingsSection.calendar)
-
-                settingsTab {
-                    PermissionCard()
-                    NotificationTimesCard()
-                    OnDemandChecksCard()
-                }
-                .tabItem { Label("Notifications", systemImage: "bell") }
-                .tag(SettingsSection.notifications)
-
-                settingsTab {
-                    LoginItemCard()
-                    AppVisibilityCard()
-                    UpdatesCard()
-                }
-                .tabItem { Label("General", systemImage: "gearshape") }
-                .tag(SettingsSection.general)
             }
-            // The AppKit tab strip measures its segment labels mid-animation and
-            // collapses them until clicked, so keep the screen-switch spring out of it.
-            .animation(nil, value: model.screen)
+            .frame(maxHeight: .infinity)
             .padding(.horizontal, 20)
 
             footer
@@ -156,11 +149,13 @@ private struct SettingsView: View {
 }
 
 
-private enum SettingsSection: Hashable {
-    case account
-    case calendar
-    case notifications
-    case general
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case account = "Account"
+    case calendar = "Calendar"
+    case notifications = "Notifications"
+    case general = "General"
+
+    var id: String { rawValue }
 }
 
 
@@ -170,12 +165,41 @@ private enum DashboardSection: String, CaseIterable, Identifiable {
     case leave = "Leave"
 
     var id: String { rawValue }
+}
 
-    var icon: String {
-        switch self {
-        case .overview: return "rectangle.grid.2x2"
-        case .meetings: return "video"
-        case .leave: return "calendar"
+
+/// Tab strip plus content box, built from a SwiftUI segmented picker instead of
+/// `TabView`. On macOS `TabView` is backed by `NSTabView`, whose tab labels can be
+/// measured before the window has a real width and stay collapsed until clicked.
+private struct SectionTabView<Section, Content>: View
+where Section: RawRepresentable & CaseIterable & Identifiable & Hashable,
+      Section.RawValue == String,
+      Section.AllCases: RandomAccessCollection,
+      Content: View {
+    @Binding var selection: Section
+    @ViewBuilder let content: (Section) -> Content
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Picker("Section", selection: $selection) {
+                ForEach(Section.allCases) { section in
+                    Text(section.rawValue).tag(section)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+
+            content(selection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(
+                    Color.leaveInk.opacity(0.03),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous),
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.leaveTeal.opacity(0.12), lineWidth: 1)
+                }
         }
     }
 }
@@ -196,25 +220,19 @@ private struct DashboardView: View {
         VStack(alignment: .leading, spacing: 24) {
             DashboardHeader(isCompact: isCompact)
 
-            TabView(selection: $selectedSection) {
-                DashboardOverview(isCompact: isCompact)
-                    .padding(20)
-                    .tabItem { Label(DashboardSection.overview.rawValue, systemImage: DashboardSection.overview.icon) }
-                    .tag(DashboardSection.overview)
-
-                MeetingCalendarCard()
-                    .padding(20)
-                    .tabItem { Label(DashboardSection.meetings.rawValue, systemImage: DashboardSection.meetings.icon) }
-                    .tag(DashboardSection.meetings)
-
-                LeaveListCard()
-                    .padding(20)
-                    .tabItem { Label(DashboardSection.leave.rawValue, systemImage: DashboardSection.leave.icon) }
-                    .tag(DashboardSection.leave)
+            SectionTabView(selection: $selectedSection) { section in
+                switch section {
+                case .overview:
+                    DashboardOverview(isCompact: isCompact)
+                        .padding(20)
+                case .meetings:
+                    MeetingCalendarCard()
+                        .padding(20)
+                case .leave:
+                    LeaveListCard()
+                        .padding(20)
+                }
             }
-            // See SettingsView: keep the screen-switch spring out of the AppKit tab strip.
-            .animation(nil, value: model.screen)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
 
             if !model.statusMessage.isEmpty {
                 StatusMessage(message: model.statusMessage)
