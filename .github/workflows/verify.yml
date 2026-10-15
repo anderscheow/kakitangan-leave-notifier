@@ -13,7 +13,8 @@ permissions:
 jobs:
   build:
     name: Build without signing
-    runs-on: macos-15
+    # Match release.yml: the app uses macOS 26 SDK APIs (Liquid Glass) behind #available checks.
+    runs-on: macos-26
 
     steps:
       - name: Check out source
