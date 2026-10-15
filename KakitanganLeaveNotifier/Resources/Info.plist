@@ -14,6 +14,16 @@
   <string>$(CURRENT_PROJECT_VERSION)</string>
   <key>CFBundleIconName</key>
   <string>AppIcon</string>
+  <!-- Google Sign-In callback scheme. Must equal REVERSED_CLIENT_ID in GoogleService-Info.plist. -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>com.googleusercontent.apps.284626938362-sthq3lrl4ut7rcohc7dlhr34839ho1r9</string>
+      </array>
+    </dict>
+  </array>
   <key>CFBundleName</key>
   <string>Kakitangan Companion</string>
   <key>CFBundlePackageType</key>

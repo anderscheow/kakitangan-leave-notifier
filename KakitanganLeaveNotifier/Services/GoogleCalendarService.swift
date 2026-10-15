@@ -1,30 +1,162 @@
-import CryptoKit
+import AppKit
 import Foundation
-import Network
-import Security
+import GoogleSignIn
+
+
+enum CalendarResponseStatus: String, Codable, CaseIterable, Identifiable {
+    case needsAction
+    case declined
+    case tentative
+    case accepted
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .needsAction:
+            return "No response"
+        case .declined:
+            return "Declined"
+        case .tentative:
+            return "Maybe"
+        case .accepted:
+            return "Accepted"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .needsAction:
+            return "questionmark.circle"
+        case .declined:
+            return "xmark.circle"
+        case .tentative:
+            return "clock.badge.questionmark"
+        case .accepted:
+            return "checkmark.circle"
+        }
+    }
+}
+
+
+struct MeetingReminderLeadTime: Codable, Equatable, Hashable, Identifiable, Comparable {
+    let id: UUID
+    let minutes: Int
+
+    init(id: UUID = UUID(), minutes: Int) throws {
+        guard (0...43_200).contains(minutes) else {
+            throw NotifierError.invalidMeetingReminder
+        }
+        self.id = id
+        self.minutes = minutes
+    }
+
+    static let defaultOptions: [MeetingReminderLeadTime] = [
+        MeetingReminderLeadTime(uncheckedMinutes: 10),
+        MeetingReminderLeadTime(uncheckedMinutes: 30),
+    ]
+
+    static func < (lhs: MeetingReminderLeadTime, rhs: MeetingReminderLeadTime) -> Bool {
+        lhs.minutes < rhs.minutes
+    }
+
+    var label: String {
+        switch minutes {
+        case 0:
+            return "At start"
+        case 1:
+            return "1 minute before"
+        case 2..<60:
+            return "\(minutes) minutes before"
+        case 60:
+            return "1 hour before"
+        case 61..<1_440 where minutes % 60 == 0:
+            return "\(minutes / 60) hours before"
+        case 1_440:
+            return "1 day before"
+        case 1_441... where minutes % 1_440 == 0:
+            return "\(minutes / 1_440) days before"
+        default:
+            return "\(minutes) minutes before"
+        }
+    }
+
+    private init(uncheckedMinutes: Int) {
+        id = UUID()
+        minutes = uncheckedMinutes
+    }
+}
 
 
 struct GoogleCalendarConfiguration: Codable, Equatable {
     var clientID: String
-    var clientSecret: String
     var ownerEmail: String
     var meetingLookAheadDays: Int
+    var reminderLeadTimes: [MeetingReminderLeadTime]
+    var liveRefreshIntervalSeconds: Int
 
     init(
-        clientID: String = "",
-        clientSecret: String = "",
+        clientID: String = GoogleCalendarConfiguration.bundleClientID,
         ownerEmail: String = "",
         meetingLookAheadDays: Int = 7,
+        reminderLeadTimes: [MeetingReminderLeadTime] = MeetingReminderLeadTime.defaultOptions,
+        liveRefreshIntervalSeconds: Int = 60,
     ) {
-        self.clientID = clientID
-        self.clientSecret = clientSecret
+        self.clientID = clientID.isEmpty ? GoogleCalendarConfiguration.bundleClientID : clientID
         self.ownerEmail = ownerEmail
         self.meetingLookAheadDays = meetingLookAheadDays
+        self.reminderLeadTimes = reminderLeadTimes.sorted()
+        self.liveRefreshIntervalSeconds = liveRefreshIntervalSeconds
     }
 
     var isConfigured: Bool {
-        clientID.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix(".apps.googleusercontent.com")
+        Self.bundleClientID.hasSuffix(".apps.googleusercontent.com")
     }
+
+    /// OAuth client ID provisioned by Firebase for this bundle ID (CLIENT_ID in GoogleService-Info.plist).
+    /// Google Sign-In only reads GIDClientID from Info.plist, so `GoogleCalendarService.configureSignIn()`
+    /// passes this value to it explicitly and the Firebase plist stays the single source of truth.
+    static let bundleClientID: String = {
+        guard
+            let url = Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist"),
+            let data = try? Data(contentsOf: url),
+            let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+            let clientID = plist["CLIENT_ID"] as? String
+        else {
+            return ""
+        }
+        return clientID
+    }()
+
+    private enum CodingKeys: String, CodingKey {
+        case clientID
+        case ownerEmail
+        case meetingLookAheadDays
+        case reminderLeadTimes
+        case liveRefreshIntervalSeconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            clientID: container.decodeIfPresent(String.self, forKey: .clientID) ?? Self.bundleClientID,
+            ownerEmail: container.decodeIfPresent(String.self, forKey: .ownerEmail) ?? "",
+            meetingLookAheadDays: container.decodeIfPresent(Int.self, forKey: .meetingLookAheadDays) ?? 7,
+            reminderLeadTimes: container.decodeIfPresent([MeetingReminderLeadTime].self, forKey: .reminderLeadTimes) ?? MeetingReminderLeadTime.defaultOptions,
+            liveRefreshIntervalSeconds: container.decodeIfPresent(Int.self, forKey: .liveRefreshIntervalSeconds) ?? 60,
+        )
+    }
+}
+
+
+struct GoogleCalendarAttendee: Codable, Equatable, Identifiable {
+    let email: String
+    let displayName: String?
+    let isSelf: Bool
+    let isOptional: Bool
+    let responseStatus: CalendarResponseStatus
+
+    var id: String { email.lowercased() }
 }
 
 
@@ -34,11 +166,20 @@ struct GoogleCalendarEvent: Identifiable, Equatable {
     let startDate: Date
     let endDate: Date
     let isAllDay: Bool
+    let isCancelled: Bool
     let location: String?
     let meetingLink: URL?
     let organizerEmail: String?
-    let attendeeEmails: [String]
+    let attendees: [GoogleCalendarAttendee]
     let ownerEmail: String
+
+    var attendeeEmails: [String] {
+        attendees.map(\.email)
+    }
+
+    var selfResponseStatus: CalendarResponseStatus {
+        attendees.first(where: \.isSelf)?.responseStatus ?? .needsAction
+    }
 
     var timeRangeText: String {
         if isAllDay {
@@ -48,7 +189,7 @@ struct GoogleCalendarEvent: Identifiable, Equatable {
     }
 
     var participantCountText: String {
-        let count = attendeeEmails.count
+        let count = attendees.count
         switch count {
         case 0:
             return "No attendees"
@@ -61,92 +202,129 @@ struct GoogleCalendarEvent: Identifiable, Equatable {
 }
 
 
-struct GoogleCalendarAuthStart {
-    let authorizationURL: URL
-    let codeVerifier: String
-    let state: String
-    let redirectURI: String
-    let server: GoogleOAuthLoopbackServer
-}
-
-
-actor GoogleCalendarService {
+@MainActor
+final class GoogleCalendarService {
     private let session: URLSession
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
-    private let calendarScope = "https://www.googleapis.com/auth/calendar.events.readonly openid email profile"
+    private let calendarScope = "https://www.googleapis.com/auth/calendar.events"
 
     init(session: URLSession = .shared) {
         self.session = session
     }
 
-    func beginAuthorization(clientID: String) throws -> GoogleCalendarAuthStart {
-        let codeVerifier = Self.secureRandomString(length: 64)
-        let state = Self.secureRandomString(length: 32)
-        let server = try GoogleOAuthLoopbackServer()
-        let redirectURI = server.redirectURI
-        guard var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth") else {
-            throw NotifierError.googleCalendarAuthenticationFailed
-        }
-        components.queryItems = [
-            URLQueryItem(name: "client_id", value: clientID.trimmingCharacters(in: .whitespacesAndNewlines)),
-            URLQueryItem(name: "redirect_uri", value: redirectURI),
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: calendarScope),
-            URLQueryItem(name: "access_type", value: "offline"),
-            URLQueryItem(name: "prompt", value: "consent"),
-            URLQueryItem(name: "state", value: state),
-            URLQueryItem(name: "code_challenge", value: Self.codeChallenge(for: codeVerifier)),
-            URLQueryItem(name: "code_challenge_method", value: "S256"),
-        ]
-        guard let authorizationURL = components.url else {
-            throw NotifierError.googleCalendarAuthenticationFailed
-        }
-        return GoogleCalendarAuthStart(
-            authorizationURL: authorizationURL,
-            codeVerifier: codeVerifier,
-            state: state,
-            redirectURI: redirectURI,
-            server: server,
-        )
+    /// Must run before any GIDSignIn call; interactive sign-in raises an exception without a configuration.
+    static func configureSignIn() {
+        let clientID = GoogleCalendarConfiguration.bundleClientID
+        guard !clientID.isEmpty else { return }
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
     }
 
-    func finishAuthorization(start: GoogleCalendarAuthStart, configuration: GoogleCalendarConfiguration) async throws -> GoogleCalendarTokenSet {
-        let redirect = try await start.server.waitForRedirect()
-        guard redirect.state == start.state else {
+    var hasPreviousSignIn: Bool {
+        GIDSignIn.sharedInstance.hasPreviousSignIn()
+    }
+
+    func signIn(presenting window: NSWindow?) async throws -> GIDGoogleUser {
+        guard GoogleCalendarConfiguration.bundleClientID.hasSuffix(".apps.googleusercontent.com") else {
+            throw NotifierError.googleCalendarNotConfigured
+        }
+        guard let window else {
             throw NotifierError.googleCalendarAuthenticationFailed
         }
-        return try await exchangeCode(
-            redirect.code,
-            clientID: configuration.clientID,
-            clientSecret: configuration.clientSecret,
-            redirectURI: start.redirectURI,
-            codeVerifier: start.codeVerifier,
-        )
-    }
-
-    func refreshAccessToken(refreshToken: String, configuration: GoogleCalendarConfiguration) async throws -> GoogleCalendarTokenSet {
-        var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var values = [
-            "client_id": configuration.clientID,
-            "refresh_token": refreshToken,
-            "grant_type": "refresh_token",
-        ]
-        if !configuration.clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            values["client_secret"] = configuration.clientSecret
+        let result: GIDSignInResult = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GIDSignInResult, Error>) in
+            GIDSignIn.sharedInstance.signIn(
+                withPresenting: window,
+                hint: nil,
+                additionalScopes: [calendarScope],
+            ) { signInResult, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let signInResult else {
+                    continuation.resume(throwing: NotifierError.googleCalendarAuthenticationFailed)
+                    return
+                }
+                continuation.resume(returning: signInResult)
+            }
         }
-        request.httpBody = Self.formBody(values)
-        let tokenSet: GoogleCalendarTokenSet = try await decodedResponse(for: request, failure: .googleCalendarAuthenticationFailed)
-        return tokenSet
+        return result.user
     }
 
-    func fetchOwnerEmail(accessToken: String) async throws -> String {
-        var request = URLRequest(url: URL(string: "https://openidconnect.googleapis.com/v1/userinfo")!)
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let profile: GoogleUserInfoResponse = try await decodedResponse(for: request, failure: .googleCalendarRequestFailed)
-        return profile.email
+    func restorePreviousSignIn() async throws -> GIDGoogleUser {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GIDGoogleUser, Error>) in
+            GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let user else {
+                    continuation.resume(throwing: NotifierError.secretNotConfigured)
+                    return
+                }
+                continuation.resume(returning: user)
+            }
+        }
+    }
+
+    func accessToken(for user: GIDGoogleUser) async throws -> String {
+        let refreshedUser: GIDGoogleUser = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GIDGoogleUser, Error>) in
+            user.refreshTokensIfNeeded { refreshedUser, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let refreshedUser else {
+                    continuation.resume(throwing: NotifierError.googleCalendarAuthenticationFailed)
+                    return
+                }
+                continuation.resume(returning: refreshedUser)
+            }
+        }
+        return refreshedUser.accessToken.tokenString
+    }
+
+    func userWithCalendarEventsScope(_ user: GIDGoogleUser, presenting window: NSWindow?) async throws -> GIDGoogleUser {
+        if user.grantedScopes?.contains(calendarScope) == true {
+            return user
+        }
+        guard let window else {
+            throw NotifierError.googleCalendarAuthenticationFailed
+        }
+        let result: GIDSignInResult = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GIDSignInResult, Error>) in
+            user.addScopes([calendarScope], presenting: window) { signInResult, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let signInResult else {
+                    continuation.resume(throwing: NotifierError.googleCalendarAuthenticationFailed)
+                    return
+                }
+                continuation.resume(returning: signInResult)
+            }
+        }
+        return result.user
+    }
+
+    func ownerEmail(for user: GIDGoogleUser) -> String {
+        user.profile?.email ?? user.userID ?? "Google account"
+    }
+
+    func signOut() {
+        GIDSignIn.sharedInstance.signOut()
+    }
+
+    func disconnect() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            GIDSignIn.sharedInstance.disconnect { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
     }
 
     func fetchEvents(accessToken: String, ownerEmail: String, daysAhead: Int, calendar: Calendar = .current) async throws -> [GoogleCalendarEvent] {
@@ -161,8 +339,8 @@ actor GoogleCalendarService {
             URLQueryItem(name: "timeMax", value: Self.rfc3339Formatter.string(from: endDate)),
             URLQueryItem(name: "singleEvents", value: "true"),
             URLQueryItem(name: "orderBy", value: "startTime"),
-            URLQueryItem(name: "maxResults", value: "40"),
-            URLQueryItem(name: "eventTypes", value: "default"),
+            URLQueryItem(name: "showDeleted", value: "true"),
+            URLQueryItem(name: "maxResults", value: "250"),
         ]
         guard let url = components?.url else {
             throw NotifierError.googleCalendarRequestFailed
@@ -174,61 +352,70 @@ actor GoogleCalendarService {
         return response.items.compactMap { $0.event(ownerEmail: ownerEmail) }
     }
 
-    private func exchangeCode(
-        _ code: String,
-        clientID: String,
-        clientSecret: String,
-        redirectURI: String,
-        codeVerifier: String,
-    ) async throws -> GoogleCalendarTokenSet {
-        var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var values = [
-            "client_id": clientID,
-            "code": code,
-            "redirect_uri": redirectURI,
-            "grant_type": "authorization_code",
-            "code_verifier": codeVerifier,
-        ]
-        if !clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            values["client_secret"] = clientSecret
+    func updateResponse(
+        event: GoogleCalendarEvent,
+        responseStatus: CalendarResponseStatus,
+        accessToken: String,
+    ) async throws -> GoogleCalendarEvent {
+        let attendeeEmail = event.attendees.first(where: \.isSelf)?.email ?? event.ownerEmail
+        var attendeePatches = event.attendees.map { attendee in
+            GoogleCalendarAttendeePatch(
+                email: attendee.email,
+                responseStatus: attendee.email.caseInsensitiveCompare(attendeeEmail) == .orderedSame
+                    ? responseStatus.rawValue
+                    : attendee.responseStatus.rawValue,
+            )
         }
-        request.httpBody = Self.formBody(values)
-        return try await decodedResponse(for: request, failure: .googleCalendarAuthenticationFailed)
+        if attendeePatches.isEmpty {
+            attendeePatches = [GoogleCalendarAttendeePatch(email: attendeeEmail, responseStatus: responseStatus.rawValue)]
+        }
+        let patch = GoogleCalendarEventPatch(attendees: attendeePatches)
+        guard let encodedEventID = event.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              var components = URLComponents(string: "https://www.googleapis.com/calendar/v3/calendars/primary/events/\(encodedEventID)") else {
+            throw NotifierError.googleCalendarRequestFailed
+        }
+        components.queryItems = [URLQueryItem(name: "sendUpdates", value: "none")]
+        guard let url = components.url else {
+            throw NotifierError.googleCalendarRequestFailed
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try encoder.encode(patch)
+        let response: GoogleCalendarEventResponse = try await decodedResponse(for: request, failure: .googleCalendarRequestFailed)
+        guard let updated = response.event(ownerEmail: event.ownerEmail) else {
+            throw NotifierError.googleCalendarResponseDecodingFailed("Updated event did not include usable dates.")
+        }
+        return updated
     }
 
     private func decodedResponse<Response: Decodable>(for request: URLRequest, failure: NotifierError) async throws -> Response {
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw failure
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw calendarAPIError(from: data, statusCode: httpResponse.statusCode)
         }
         do {
             return try decoder.decode(Response.self, from: data)
         } catch {
-            throw failure
+            throw NotifierError.googleCalendarResponseDecodingFailed(error.localizedDescription)
         }
     }
 
-    private static func formBody(_ values: [String: String]) -> Data {
-        values
-            .map { key, value in
-                "\(key.urlFormEncoded)=\(value.urlFormEncoded)"
-            }
-            .joined(separator: "&")
-            .data(using: .utf8) ?? Data()
-    }
-
-    private static func secureRandomString(length: Int) -> String {
-        let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
-        var bytes = [UInt8](repeating: 0, count: length)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        return String(bytes.map { alphabet[Int($0) % alphabet.count] })
-    }
-
-    private static func codeChallenge(for verifier: String) -> String {
-        let digest = SHA256.hash(data: Data(verifier.utf8))
-        return Data(digest).base64URLEncodedString()
+    private func calendarAPIError(from data: Data, statusCode: Int) -> Error {
+        if let response = try? decoder.decode(GoogleCalendarErrorResponse.self, from: data) {
+            let detail = response.error.errors.first?.reason ?? response.error.message
+            return NotifierError.googleCalendarRequestFailedDetail("HTTP \(statusCode): \(response.error.message) (\(detail))")
+        }
+        let body = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let body, !body.isEmpty {
+            return NotifierError.googleCalendarRequestFailedDetail("HTTP \(statusCode): \(body)")
+        }
+        return NotifierError.googleCalendarRequestFailedDetail("HTTP \(statusCode)")
     }
 
     private static let rfc3339Formatter: ISO8601DateFormatter = {
@@ -239,153 +426,67 @@ actor GoogleCalendarService {
 }
 
 
-final class GoogleOAuthLoopbackServer: @unchecked Sendable {
-    let redirectURI: String
-
-    private let listener: NWListener
-    private let queue = DispatchQueue(label: "GoogleOAuthLoopbackServer")
-    private var continuation: CheckedContinuation<GoogleOAuthRedirect, Error>?
-    private var didResume = false
-
-    init(port: NWEndpoint.Port = 53682) throws {
-        listener = try NWListener(using: .tcp, on: port)
-        redirectURI = "http://127.0.0.1:\(port.rawValue)/oauth2redirect"
-    }
-
-    func waitForRedirect() async throws -> GoogleOAuthRedirect {
-        try await withCheckedThrowingContinuation { continuation in
-            queue.async {
-                self.continuation = continuation
-                self.listener.stateUpdateHandler = { state in
-                    guard case let .failed(error) = state else { return }
-                    self.finish(with: .failure(error))
-                }
-                self.listener.newConnectionHandler = { connection in
-                    self.handle(connection)
-                }
-                self.listener.start(queue: self.queue)
-            }
-        }
-    }
-
-    private func handle(_ connection: NWConnection) {
-        connection.start(queue: queue)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 8_192) { [weak self] data, _, _, error in
-            guard let self else { return }
-            if let error {
-                self.finish(with: .failure(error))
-                return
-            }
-            guard let data, let request = String(data: data, encoding: .utf8), let firstLine = request.components(separatedBy: "\r\n").first else {
-                self.finish(with: .failure(NotifierError.googleCalendarAuthenticationFailed))
-                return
-            }
-            let parts = firstLine.split(separator: " ")
-            guard parts.count >= 2,
-                  let url = URL(string: "http://127.0.0.1\(parts[1])"),
-                  let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-                self.sendResponse(connection, success: false)
-                self.finish(with: .failure(NotifierError.googleCalendarAuthenticationFailed))
-                return
-            }
-            let queryItems = components.queryItems ?? []
-            if let errorValue = queryItems.first(where: { $0.name == "error" })?.value {
-                self.sendResponse(connection, success: false)
-                self.finish(with: .failure(NotifierError.googleCalendarOAuthDenied(errorValue)))
-                return
-            }
-            guard let code = queryItems.first(where: { $0.name == "code" })?.value,
-                  let state = queryItems.first(where: { $0.name == "state" })?.value else {
-                self.sendResponse(connection, success: false)
-                self.finish(with: .failure(NotifierError.googleCalendarAuthenticationFailed))
-                return
-            }
-            self.sendResponse(connection, success: true)
-            self.finish(with: .success(GoogleOAuthRedirect(code: code, state: state)))
-        }
-    }
-
-    private func sendResponse(_ connection: NWConnection, success: Bool) {
-        let title = success ? "Google Calendar connected" : "Google Calendar connection failed"
-        let body = success ? "You can close this browser tab and return to Kakitangan Companion." : "Return to Kakitangan Companion and try connecting again."
-        let html = """
-        <!doctype html><html><head><meta charset=\"utf-8\"><title>\(title)</title></head><body style=\"font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:48px;line-height:1.5\"><h1>\(title)</h1><p>\(body)</p></body></html>
-        """
-        let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n\(html)"
-        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
-            connection.cancel()
-        })
-    }
-
-    private func finish(with result: Result<GoogleOAuthRedirect, Error>) {
-        guard !didResume else { return }
-        didResume = true
-        listener.cancel()
-        switch result {
-        case let .success(redirect):
-            continuation?.resume(returning: redirect)
-        case let .failure(error):
-            continuation?.resume(throwing: error)
-        }
-        continuation = nil
-    }
-}
-
-
-struct GoogleOAuthRedirect {
-    let code: String
-    let state: String
-}
-
-
-struct GoogleCalendarTokenSet: Decodable {
-    let accessToken: String
-    let refreshToken: String?
-    let expiresIn: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresIn = "expires_in"
-    }
-}
-
-
-private struct GoogleUserInfoResponse: Decodable {
-    let email: String
-}
-
-
 private struct GoogleCalendarEventsResponse: Decodable {
     let items: [GoogleCalendarEventResponse]
+}
+
+
+private struct GoogleCalendarErrorResponse: Decodable {
+    let error: GoogleCalendarError
+}
+
+
+private struct GoogleCalendarError: Decodable {
+    let code: Int
+    let message: String
+    let errors: [GoogleCalendarErrorDetail]
+}
+
+
+private struct GoogleCalendarErrorDetail: Decodable {
+    let reason: String
+}
+
+
+private struct GoogleCalendarEventPatch: Encodable {
+    let attendees: [GoogleCalendarAttendeePatch]
+}
+
+
+private struct GoogleCalendarAttendeePatch: Encodable {
+    let email: String
+    let responseStatus: String
 }
 
 
 private struct GoogleCalendarEventResponse: Decodable {
     let id: String
     let summary: String?
-    let start: GoogleCalendarEventDate
-    let end: GoogleCalendarEventDate
+    let status: String?
+    let start: GoogleCalendarEventDate?
+    let end: GoogleCalendarEventDate?
     let location: String?
     let hangoutLink: String?
     let htmlLink: String?
     let organizer: GoogleCalendarPerson?
     let attendees: [GoogleCalendarPerson]?
+    let originalStartTime: GoogleCalendarEventDate?
 
     func event(ownerEmail: String) -> GoogleCalendarEvent? {
-        guard let startDate = start.resolvedDate, let endDate = end.resolvedDate else {
-            return nil
-        }
+        let isCancelled = status == "cancelled"
+        let startDate = start?.resolvedDate ?? originalStartTime?.resolvedDate ?? Date()
+        let endDate = end?.resolvedDate ?? startDate
         return GoogleCalendarEvent(
             id: id,
             title: summary?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? summary! : "Untitled meeting",
             startDate: startDate,
             endDate: endDate,
-            isAllDay: start.date != nil,
+            isAllDay: start?.date != nil,
+            isCancelled: isCancelled,
             location: location,
             meetingLink: URL(string: hangoutLink ?? htmlLink ?? ""),
             organizerEmail: organizer?.email,
-            attendeeEmails: attendees?.compactMap(\.email) ?? [],
+            attendees: attendees?.compactMap { $0.attendee } ?? [],
             ownerEmail: ownerEmail,
         )
     }
@@ -416,30 +517,27 @@ private struct GoogleCalendarEventDate: Decodable {
 
 private struct GoogleCalendarPerson: Decodable {
     let email: String?
-}
+    let displayName: String?
+    let selfAttendee: Bool?
+    let optional: Bool?
+    let responseStatus: String?
 
-
-private extension String {
-    var urlFormEncoded: String {
-        addingPercentEncoding(withAllowedCharacters: .urlFormAllowed) ?? self
+    enum CodingKeys: String, CodingKey {
+        case email
+        case displayName
+        case selfAttendee = "self"
+        case optional
+        case responseStatus
     }
-}
 
-
-private extension CharacterSet {
-    static let urlFormAllowed: CharacterSet = {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "+&=")
-        return allowed
-    }()
-}
-
-
-private extension Data {
-    func base64URLEncodedString() -> String {
-        base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
+    var attendee: GoogleCalendarAttendee? {
+        guard let email else { return nil }
+        return GoogleCalendarAttendee(
+            email: email,
+            displayName: displayName,
+            isSelf: selfAttendee == true,
+            isOptional: optional == true,
+            responseStatus: CalendarResponseStatus(rawValue: responseStatus ?? "") ?? .needsAction,
+        )
     }
 }

@@ -250,6 +250,7 @@ enum NotifierError: LocalizedError {
     case invalidMonitoredEmails
     case invalidDaysAhead
     case invalidNotificationTimes
+    case invalidMeetingReminder
     case invalidAccountConfiguration
     case notificationTimesRequired
     case automatedCheckNotConfigured
@@ -266,6 +267,8 @@ enum NotifierError: LocalizedError {
     case googleCalendarAuthenticationFailed
     case googleCalendarOAuthDenied(String)
     case googleCalendarRequestFailed
+    case googleCalendarRequestFailedDetail(String)
+    case googleCalendarResponseDecodingFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -277,6 +280,8 @@ enum NotifierError: LocalizedError {
             return "The look-ahead window must be between 0 and 365 days."
         case .invalidNotificationTimes:
             return "Notification times must be valid and cannot be duplicated."
+        case .invalidMeetingReminder:
+            return "Meeting reminders must be between now and 30 days before a meeting."
         case .invalidAccountConfiguration:
             return "Add at least one complete Kakitangan account with people to monitor."
         case .notificationTimesRequired:
@@ -303,13 +308,17 @@ enum NotifierError: LocalizedError {
         case .secretNotConfigured:
             return "The secure token is not saved in Keychain."
         case .googleCalendarNotConfigured:
-            return "Add a Google OAuth desktop client ID before connecting Calendar."
+            return "Add the Firebase GoogleService-Info.plist to the app before connecting Calendar."
         case .googleCalendarAuthenticationFailed:
             return "Google Calendar authentication failed. Check the OAuth client and try again."
         case let .googleCalendarOAuthDenied(reason):
             return "Google Calendar was not connected: \(reason)."
         case .googleCalendarRequestFailed:
             return "Google Calendar meetings could not be retrieved."
+        case let .googleCalendarRequestFailedDetail(detail):
+            return "Google Calendar meetings could not be retrieved: \(detail)"
+        case let .googleCalendarResponseDecodingFailed(detail):
+            return "Google Calendar returned meetings in an unexpected format: \(detail)"
         }
     }
 }

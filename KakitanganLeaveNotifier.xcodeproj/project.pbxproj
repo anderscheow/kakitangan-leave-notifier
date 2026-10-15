@@ -24,6 +24,9 @@
 		A10000000000000000000016 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000002 /* Sparkle */; };
 		A10000000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Assets.xcassets */; };
 		BFD7093A30777F13003A5454 /* GoogleCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD7093930777F12003A5454 /* GoogleCalendarService.swift */; };
+		BFD7093D307788F8003A5454 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = BFD7093C307788F8003A5454 /* GoogleSignIn */; };
+		BFD7093F307788F8003A5454 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BFD7093E307788F8003A5454 /* GoogleSignInSwift */; };
+		BFD70941307F1924003A5454 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = BFD70940307F1924003A5454 /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +49,7 @@
 		A20000000000000000000018 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		A20000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BFD7093930777F12003A5454 /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
+		BFD70940307F1924003A5454 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,7 +57,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BFD7093F307788F8003A5454 /* GoogleSignInSwift in Frameworks */,
 				A10000000000000000000012 /* UserNotifications.framework in Frameworks */,
+				BFD7093D307788F8003A5454 /* GoogleSignIn in Frameworks */,
 				A10000000000000000000013 /* Security.framework in Frameworks */,
 				A10000000000000000000016 /* Sparkle in Frameworks */,
 			);
@@ -147,6 +153,7 @@
 				A20000000000000000000015 /* Info.plist */,
 				A20000000000000000000016 /* KakitanganLeaveNotifier.entitlements */,
 				A20000000000000000000019 /* Assets.xcassets */,
+				BFD70940307F1924003A5454 /* GoogleService-Info.plist */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -169,6 +176,8 @@
 			name = KakitanganLeaveNotifier;
 			packageProductDependencies = (
 				A90000000000000000000002 /* Sparkle */,
+				BFD7093C307788F8003A5454 /* GoogleSignIn */,
+				BFD7093E307788F8003A5454 /* GoogleSignInSwift */,
 			);
 			productName = KakitanganLeaveNotifier;
 			productReference = A20000000000000000000012 /* Kakitangan Leave Notifier.app */;
@@ -200,6 +209,7 @@
 			mainGroup = A40000000000000000000001;
 			packageReferences = (
 				A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				BFD7093B307788F8003A5454 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			productRefGroup = A40000000000000000000007 /* Products */;
 			projectDirPath = "";
@@ -216,6 +226,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000017 /* Assets.xcassets in Resources */,
+				BFD70941307F1924003A5454 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -351,6 +362,14 @@
 				minimumVersion = 2.9.4;
 			};
 		};
+		BFD7093B307788F8003A5454 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 10.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -358,6 +377,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A90000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		BFD7093C307788F8003A5454 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BFD7093B307788F8003A5454 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		BFD7093E307788F8003A5454 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BFD7093B307788F8003A5454 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

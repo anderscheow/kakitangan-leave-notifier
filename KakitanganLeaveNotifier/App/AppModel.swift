@@ -89,6 +89,7 @@ final class AppModel: ObservableObject {
     @Published var googleCalendar: GoogleCalendarConfiguration
     @Published var calendarEvents: [GoogleCalendarEvent] = []
     @Published var calendarLastRefreshDate: Date?
+    @Published var lastCancelledMeetingCount: Int = 0
     @Published var isConnectingGoogleCalendar: Bool = false
     @Published var isRefreshingCalendar: Bool = false
     @Published var statusMessage: String = ""
@@ -106,6 +107,8 @@ final class AppModel: ObservableObject {
 
     private let configurationStore = ConfigurationStore()
     private let keychainStore = KeychainStore()
+    private var knownCalendarEventIDs: Set<String> = []
+    private var alertedCancelledEventIDs: Set<String> = []
     private var openSettingsObserver: NSObjectProtocol?
 
     init() {
@@ -117,7 +120,9 @@ final class AppModel: ObservableObject {
         notificationTimes = configuration.notificationTimes
         runAtLogin = configuration.runAtLogin
         appVisibility = configuration.appVisibility
-        googleCalendar = configuration.googleCalendar
+        var loadedGoogleCalendar = configuration.googleCalendar
+        loadedGoogleCalendar.clientID = GoogleCalendarConfiguration.bundleClientID
+        googleCalendar = loadedGoogleCalendar
         let scheduleInstalled = LaunchAgentService.isWeekdayScheduleInstalled
         isWeekdayScheduleInstalled = scheduleInstalled
         needsScheduleRefresh = scheduleInstalled && !LaunchAgentService.isScheduleCurrent(
@@ -208,11 +213,47 @@ final class AppModel: ObservableObject {
     }
 
     var isGoogleCalendarConnected: Bool {
-        keychainStore.hasSecret(account: Self.googleRefreshTokenAccount)
+        !googleCalendar.ownerEmail.isEmpty || GoogleCalendarService().hasPreviousSignIn
     }
 
     var upcomingMeetingCount: Int {
-        calendarEvents.count
+        calendarEvents.filter { !$0.isCancelled }.count
+    }
+
+    var cancelledMeetingCount: Int {
+        calendarEvents.filter(\.isCancelled).count
+    }
+
+    var confirmedCalendarEvents: [GoogleCalendarEvent] {
+        calendarEvents.filter { !$0.isCancelled }
+    }
+
+    var cancelledCalendarEvents: [GoogleCalendarEvent] {
+        calendarEvents.filter(\.isCancelled)
+    }
+
+    var meetingReminderSummary: String {
+        guard !googleCalendar.reminderLeadTimes.isEmpty else {
+            return "No meeting reminders"
+        }
+        return googleCalendar.reminderLeadTimes.sorted().map { reminder in
+            switch reminder.minutes {
+            case 0:
+                return "Start"
+            case 1..<60:
+                return "\(reminder.minutes)m"
+            case 60:
+                return "1h"
+            case 61..<1_440 where reminder.minutes % 60 == 0:
+                return "\(reminder.minutes / 60)h"
+            case 1_440:
+                return "1d"
+            case 1_441... where reminder.minutes % 1_440 == 0:
+                return "\(reminder.minutes / 1_440)d"
+            default:
+                return "\(reminder.minutes)m"
+            }
+        }.joined(separator: ", ")
     }
 
     var googleCalendarOwnerLabel: String {
@@ -483,16 +524,25 @@ final class AppModel: ObservableObject {
         updateSelectedAccount { $0.password = password }
     }
 
-    func updateGoogleCalendarClientID(_ clientID: String) {
-        googleCalendar.clientID = clientID
-    }
-
-    func updateGoogleCalendarClientSecret(_ clientSecret: String) {
-        googleCalendar.clientSecret = clientSecret
-    }
-
     func updateGoogleCalendarLookAheadDays(_ days: Int) {
         googleCalendar.meetingLookAheadDays = min(max(days, 0), 365)
+    }
+
+    func updateGoogleCalendarLiveRefreshInterval(_ seconds: Int) {
+        googleCalendar.liveRefreshIntervalSeconds = min(max(seconds, 15), 3_600)
+    }
+
+    func addMeetingReminder(minutes: Int) {
+        guard let reminder = try? MeetingReminderLeadTime(minutes: minutes),
+              !googleCalendar.reminderLeadTimes.contains(where: { $0.minutes == reminder.minutes }) else {
+            return
+        }
+        googleCalendar.reminderLeadTimes.append(reminder)
+        googleCalendar.reminderLeadTimes.sort()
+    }
+
+    func removeMeetingReminder(id: UUID) {
+        googleCalendar.reminderLeadTimes.removeAll { $0.id == id }
     }
 
     private func updateSelectedAccount(_ update: (inout MonitoredAccount) -> Void) {
@@ -627,22 +677,15 @@ final class AppModel: ObservableObject {
 
         do {
             let service = GoogleCalendarService()
-            let start = try await service.beginAuthorization(clientID: googleCalendar.clientID)
-            NSWorkspace.shared.open(start.authorizationURL)
-            let tokenSet = try await service.finishAuthorization(start: start, configuration: googleCalendar)
-            if let refreshToken = tokenSet.refreshToken {
-                try keychainStore.save(secret: refreshToken, account: Self.googleRefreshTokenAccount)
-            } else if !isGoogleCalendarConnected {
-                throw NotifierError.secretNotConfigured
-            }
-            let ownerEmail = try await service.fetchOwnerEmail(accessToken: tokenSet.accessToken)
-            googleCalendar.ownerEmail = ownerEmail
+            let user = try await service.signIn(presenting: NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible })
+            googleCalendar.clientID = GoogleCalendarConfiguration.bundleClientID
+            googleCalendar.ownerEmail = service.ownerEmail(for: user)
             let configuration = try persistConfiguration(requiresPassword: false)
             googleCalendar = configuration.googleCalendar
-            statusMessage = "Google Calendar connected for \(ownerEmail)."
+            statusMessage = "Google Calendar connected for \(googleCalendar.ownerEmail)."
             await refreshCalendarEvents()
         } catch {
-            statusMessage = error.localizedDescription
+            statusMessage = googleCalendarStatusMessage(for: error)
         }
     }
 
@@ -658,42 +701,107 @@ final class AppModel: ObservableObject {
         defer { isRefreshingCalendar = false }
 
         do {
-            let refreshToken = try keychainStore.secret(account: Self.googleRefreshTokenAccount)
             let service = GoogleCalendarService()
-            let tokenSet = try await service.refreshAccessToken(refreshToken: refreshToken, configuration: googleCalendar)
-            let ownerEmail = googleCalendar.ownerEmail.isEmpty
-                ? try await service.fetchOwnerEmail(accessToken: tokenSet.accessToken)
-                : googleCalendar.ownerEmail
-            if googleCalendar.ownerEmail != ownerEmail {
+            let user = try await service.restorePreviousSignIn()
+            let ownerEmail = service.ownerEmail(for: user)
+            if googleCalendar.clientID != GoogleCalendarConfiguration.bundleClientID || googleCalendar.ownerEmail != ownerEmail {
+                googleCalendar.clientID = GoogleCalendarConfiguration.bundleClientID
                 googleCalendar.ownerEmail = ownerEmail
                 _ = try persistConfiguration(requiresPassword: false)
             }
-            calendarEvents = try await service.fetchEvents(
-                accessToken: tokenSet.accessToken,
+            let accessToken = try await service.accessToken(for: user)
+            let events = try await service.fetchEvents(
+                accessToken: accessToken,
                 ownerEmail: ownerEmail,
                 daysAhead: googleCalendar.meetingLookAheadDays,
             )
+            await handleCalendarEventsUpdate(events)
             calendarLastRefreshDate = Date()
             statusMessage = ""
         } catch NotifierError.secretNotConfigured {
             calendarEvents = []
-            statusMessage = "Connect Google Calendar to show meetings."
         } catch {
-            statusMessage = error.localizedDescription
+            statusMessage = googleCalendarStatusMessage(for: error)
         }
     }
 
-    func disconnectGoogleCalendar() {
-        do {
-            try keychainStore.deleteSecret(account: Self.googleRefreshTokenAccount)
-            googleCalendar.ownerEmail = ""
-            calendarEvents = []
-            calendarLastRefreshDate = nil
-            _ = try persistConfiguration(requiresPassword: false)
-            statusMessage = "Google Calendar disconnected."
-        } catch {
-            statusMessage = error.localizedDescription
+    func startCalendarLiveWatch() async {
+        while !Task.isCancelled {
+            await refreshCalendarEvents()
+            let seconds = max(googleCalendar.liveRefreshIntervalSeconds, 15)
+            try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
         }
+    }
+
+    func respondToMeeting(_ event: GoogleCalendarEvent, with responseStatus: CalendarResponseStatus) async {
+        do {
+            let service = GoogleCalendarService()
+            let user = try await service.restorePreviousSignIn()
+            let scopedUser = try await service.userWithCalendarEventsScope(
+                user,
+                presenting: NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible },
+            )
+            let accessToken = try await service.accessToken(for: scopedUser)
+            let updated = try await service.updateResponse(
+                event: event,
+                responseStatus: responseStatus,
+                accessToken: accessToken,
+            )
+            if let index = calendarEvents.firstIndex(where: { $0.id == event.id }) {
+                calendarEvents[index] = updated
+            }
+            statusMessage = "Response updated to \(responseStatus.title)."
+        } catch {
+            statusMessage = googleCalendarStatusMessage(for: error)
+        }
+    }
+
+    private func handleCalendarEventsUpdate(_ events: [GoogleCalendarEvent]) async {
+        let cancelledEvents = events.filter(\.isCancelled)
+        let newCancelledEvents = cancelledEvents.filter { event in
+            let known = knownCalendarEventIDs.contains(event.id)
+            return known && !alertedCancelledEventIDs.contains(event.id)
+        }
+        calendarEvents = events
+        knownCalendarEventIDs.formUnion(events.map(\.id))
+        lastCancelledMeetingCount = newCancelledEvents.count
+        for event in newCancelledEvents {
+            alertedCancelledEventIDs.insert(event.id)
+            try? await NotificationService.shared.sendCancelledMeetingAlert(event: event)
+        }
+        try? await NotificationService.shared.scheduleMeetingReminders(
+            events: events,
+            leadTimes: googleCalendar.reminderLeadTimes,
+        )
+    }
+
+    func disconnectGoogleCalendar() {
+        Task {
+            do {
+                try await GoogleCalendarService().disconnect()
+                googleCalendar.clientID = GoogleCalendarConfiguration.bundleClientID
+                googleCalendar.ownerEmail = ""
+                calendarEvents = []
+                calendarLastRefreshDate = nil
+                _ = try persistConfiguration(requiresPassword: false)
+                statusMessage = "Google Calendar disconnected."
+            } catch {
+                GoogleCalendarService().signOut()
+                googleCalendar.ownerEmail = ""
+                calendarEvents = []
+                calendarLastRefreshDate = nil
+                statusMessage = googleCalendarStatusMessage(for: error)
+            }
+        }
+    }
+
+    private func googleCalendarStatusMessage(for error: Error) -> String {
+        let message = error.localizedDescription
+        let lowercasedMessage = message.lowercased()
+        if lowercasedMessage.contains("client_secret") || lowercasedMessage.contains("invalid_request") {
+            return "Google rejected this OAuth client because it requires a client secret. Re-download GoogleService-Info.plist from the Firebase console for this bundle ID and make sure the Info.plist URL scheme matches its REVERSED_CLIENT_ID."
+        }
+        return message
     }
 
     private static func monitoredEmails(from addresses: [String]) -> [MonitoredEmail] {
@@ -769,6 +877,7 @@ final class AppModel: ObservableObject {
         runAtLogin = configuration.runAtLogin
         appVisibility = configuration.appVisibility
         googleCalendar = configuration.googleCalendar
+        googleCalendar.clientID = GoogleCalendarConfiguration.bundleClientID
         _ = applyAppVisibility()
     }
 
@@ -789,8 +898,6 @@ final class AppModel: ObservableObject {
             userInfo: ["appVisibility": appVisibility.rawValue],
         )
     }
-
-    private static let googleRefreshTokenAccount = "google-calendar-refresh-token"
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()

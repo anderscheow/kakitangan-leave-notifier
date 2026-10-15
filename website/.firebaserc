@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "default": "kakitangan-compa-1791447427320"
+  },
+  "targets": {
+    "kakitangan-compa-1791447427320": {
+      "hosting": {
+        "companion": ["kakitangan-companion"]
+      }
+    }
+  }
+}

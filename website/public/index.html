@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakitangan Companion for macOS</title>
+  <meta name="description" content="Kakitangan Companion is a free macOS menu bar app that watches your team's Kakitangan leave and your Google Calendar, then notifies you before it matters.">
+  <link rel="canonical" href="https://kakitangan-companion.web.app/">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/app-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Kakitangan Companion for macOS">
+  <meta property="og:description" content="Leave and meetings, in your menu bar. A free macOS app for teams on Kakitangan and Google Workspace.">
+  <meta property="og:url" content="https://kakitangan-companion.web.app/">
+  <meta property="og:image" content="https://kakitangan-companion.web.app/app-icon.png">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0fdfa">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#061614">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="/">
+        <img src="/favicon.png" alt="" width="32" height="32">
+        Kakitangan Companion
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/privacy">Privacy policy</a>
+        <a class="hide-sm" href="https://github.com/anderscheow/kakitangan-leave-notifier">GitHub</a>
+        <a class="btn btn-primary" href="https://github.com/anderscheow/kakitangan-leave-notifier/releases/latest">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div class="hero-copy">
+          <h1>Leave and meetings, in your menu bar.</h1>
+          <p class="lede">Kakitangan Companion watches your team's Kakitangan leave and your Google Calendar, then tells you before it matters.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/anderscheow/kakitangan-leave-notifier/releases/latest">Download for macOS</a>
+            <a class="btn btn-secondary" href="/privacy">Privacy policy</a>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <img src="/app-icon.png" alt="" width="512" height="512" fetchpriority="high">
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Two feeds your day actually depends on.</h2>
+          <p>It runs quietly on your Mac, checks on a schedule you set, and only speaks up with Time Sensitive notifications.</p>
+        </div>
+        <div class="bento">
+          <article class="tile tile-wide tile-teal">
+            <h3>Who is on leave</h3>
+            <p>Sign in with one or more Kakitangan accounts, pick the people you manage, and get a weekday summary of who is away in the days ahead.</p>
+          </article>
+          <article class="tile tile-narrow tile-grid">
+            <h3>Meetings beside leave</h3>
+            <p>Connect Google Calendar to see upcoming meetings next to the leave list, with reminders at the lead times you choose.</p>
+          </article>
+          <article class="tile tile-narrow tile-tint">
+            <h3>Cancellations, caught early</h3>
+            <p>While the app is open it watches your primary calendar and alerts you when a meeting is cancelled. You can answer invitations from the same card.</p>
+          </article>
+          <article class="tile tile-wide">
+            <h3>Menu bar, Dock, or both</h3>
+            <p>Choose how visible the app is, let it open at login, and keep it running after the window closes. Updates arrive in app through Sparkle.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="privacy">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Your data stays on your Mac.</h2>
+          <p>There is no Kakitangan Companion server. The app talks directly to Kakitangan and to Google, and keeps what it needs locally.</p>
+        </div>
+        <div class="facts">
+          <div class="fact">
+            <h3>Kakitangan credentials</h3>
+            <p>Your account password is stored in the macOS Keychain. Only the account email, the people you monitor, and your schedule settings are saved in app preferences.</p>
+          </div>
+          <div class="fact">
+            <h3>Google Calendar access</h3>
+            <p>The app asks for permission to read events on your primary calendar and to update your own RSVP. Tokens are held by Google Sign-In on your Mac. Event data is kept in memory to show the list and schedule local reminders.</p>
+          </div>
+          <div class="fact">
+            <h3>Nothing shared, nothing tracked</h3>
+            <p>No analytics, no advertising, and no third party receives your leave or calendar data. Read the <a href="/privacy">full privacy policy</a> for the details.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="install">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Up and running in a few minutes.</h2>
+          <p>Kakitangan Companion is a signed and notarized installer for macOS 12 or later.</p>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <span class="step-num" aria-hidden="true">1</span>
+            <div>
+              <h3>Install</h3>
+              <p>Download the latest <code>.pkg</code> from GitHub Releases and run it. Later versions update from inside the app.</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-num" aria-hidden="true">2</span>
+            <div>
+              <h3>Allow notifications</h3>
+              <p>Click Allow notifications on the setup screen, then enable Time Sensitive alerts in System Settings so reminders break through Focus.</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-num" aria-hidden="true">3</span>
+            <div>
+              <h3>Connect</h3>
+              <p>Add your Kakitangan account and the people you want to monitor. Connect Google when you want meetings in the same window.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>Kakitangan Companion is built by Anders Cheow and is not affiliated with Kakitangan or Google.</p>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="/privacy">Privacy policy</a>
+        <a href="https://github.com/anderscheow/kakitangan-leave-notifier">GitHub</a>
+        <a href="https://github.com/anderscheow/kakitangan-leave-notifier/releases">Releases</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

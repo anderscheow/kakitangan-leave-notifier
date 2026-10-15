@@ -15,10 +15,13 @@ struct ContentView: View {
             case .setup, .editing:
                 SettingsView(isEditing: model.isEditing)
             case .dashboard:
-                ScrollView {
-                    DashboardView()
-                        .padding(32)
-                        .frame(maxWidth: 840, alignment: .topLeading)
+                GeometryReader { proxy in
+                    ScrollView {
+                        DashboardView(width: proxy.size.width)
+                            .padding(proxy.size.width < 640 ? 16 : 32)
+                            .frame(maxWidth: 1120, alignment: .topLeading)
+                            .frame(maxWidth: .infinity, alignment: .top)
+                    }
                 }
             }
         }
@@ -94,7 +97,7 @@ private struct SettingsView: View {
                     ? "Update Kakitangan leave tracking, Google Calendar, notifications, or app behavior."
                     : "Track Kakitangan leave and your Google meetings from one calm weekday briefing.")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -122,14 +125,14 @@ private struct SettingsView: View {
                     Button("Cancel") {
                         model.cancelEditing()
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.liquidGlass)
                     .controlSize(.large)
                 }
 
                 Button(isEditing ? "Save changes" : "Save setup") {
                     model.saveSetup()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.liquidGlassProminent)
                 .tint(.leaveTeal)
                 .controlSize(.large)
 
@@ -138,7 +141,24 @@ private struct SettingsView: View {
 
             Text("Your password is saved only in the macOS Keychain. This app never displays or exports it.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.leaveMuted)
+        }
+    }
+}
+
+
+private enum DashboardSection: String, CaseIterable, Identifiable {
+    case overview = "Overview"
+    case meetings = "Meetings"
+    case leave = "Leave"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .overview: return "rectangle.grid.2x2"
+        case .meetings: return "video"
+        case .leave: return "calendar"
         }
     }
 }
@@ -147,31 +167,30 @@ private struct SettingsView: View {
 private struct DashboardView: View {
     @EnvironmentObject private var model: AppModel
 
+    let width: CGFloat
+
+    private var isCompact: Bool {
+        width < 720
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            dashboardHeader
-            scheduleCard
+            DashboardHeader(isCompact: isCompact)
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 210), spacing: 16)],
-                spacing: 16,
-            ) {
-                MetricCard(title: "Accounts", value: "\(model.configuredAccountCount)", icon: "person.crop.circle")
-                MetricCard(title: "Watching", value: "\(model.monitoredEmployeeCount) people", icon: "person.2")
-                MetricCard(
-                    title: "Leave horizon",
-                    value: "\(model.daysAhead) days",
-                    icon: "calendar",
-                )
-                MetricCard(
-                    title: "Meetings",
-                    value: model.isGoogleCalendarConnected ? "\(model.upcomingMeetingCount) upcoming" : "Not connected",
-                    icon: "video",
-                )
+            TabView {
+                DashboardOverview(isCompact: isCompact)
+                    .padding(20)
+                    .tabItem { Label("Overview", systemImage: DashboardSection.overview.icon) }
+
+                MeetingCalendarCard()
+                    .padding(20)
+                    .tabItem { Label("Meetings", systemImage: DashboardSection.meetings.icon) }
+
+                LeaveListCard()
+                    .padding(20)
+                    .tabItem { Label("Leave", systemImage: DashboardSection.leave.icon) }
             }
-
-            MeetingCalendarCard()
-            LeaveListCard()
+            .frame(maxWidth: .infinity, alignment: .topLeading)
 
             if !model.statusMessage.isEmpty {
                 StatusMessage(message: model.statusMessage)
@@ -179,11 +198,35 @@ private struct DashboardView: View {
         }
         .task {
             await model.refreshWatchList()
-            await model.refreshCalendarEvents()
+        }
+        .task {
+            await model.startCalendarLiveWatch()
+        }
+    }
+}
+
+
+private struct DashboardHeader: View {
+    @EnvironmentObject private var model: AppModel
+
+    let isCompact: Bool
+
+    var body: some View {
+        if isCompact {
+            VStack(alignment: .leading, spacing: 16) {
+                titleContent
+                actionBar
+            }
+        } else {
+            HStack(alignment: .top, spacing: 16) {
+                titleContent
+                Spacer(minLength: 12)
+                actionBar
+            }
         }
     }
 
-    private var dashboardHeader: some View {
+    private var titleContent: some View {
         HStack(alignment: .top, spacing: 16) {
             AppMark()
 
@@ -192,51 +235,90 @@ private struct DashboardView: View {
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.leaveInk)
                 Text("Leave coverage and meeting context, ready when you are.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
             }
+        }
+    }
 
-            Spacer(minLength: 12)
-
+    private var actionBar: some View {
+        HStack(spacing: 10) {
             Button {
-                Task { await model.refreshWatchList() }
+                Task {
+                    await model.refreshWatchList()
+                    await model.refreshCalendarEvents()
+                }
             } label: {
-                if model.isRefreshing {
+                if model.isRefreshing || model.isRefreshingCalendar {
                     ProgressView()
                         .controlSize(.small)
                 } else {
                     Image(systemName: "arrow.clockwise")
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.liquidGlass)
             .controlSize(.large)
-            .disabled(model.isRefreshing)
-            .help("Refresh leave list")
-            .accessibilityLabel("Refresh leave list")
+            .disabled(model.isRefreshing || model.isRefreshingCalendar)
+            .help("Refresh leave and meetings")
+            .accessibilityLabel("Refresh leave and meetings")
 
             Button {
                 model.beginEditing()
             } label: {
                 Image(systemName: "gearshape")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.liquidGlass)
             .controlSize(.large)
             .help("Settings")
             .accessibilityLabel("Open settings")
         }
     }
+}
 
-    private var scheduleCard: some View {
+
+private struct DashboardOverview: View {
+    @EnvironmentObject private var model: AppModel
+
+    let isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ScheduleStatusCard()
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: isCompact ? 170 : 230), spacing: 16)],
+                spacing: 16,
+            ) {
+                MetricCard(title: "Accounts", value: "\(model.configuredAccountCount)", icon: "person.crop.circle")
+                MetricCard(title: "Watching", value: "\(model.monitoredEmployeeCount) people", icon: "person.2")
+                MetricCard(title: "Leave horizon", value: "\(model.daysAhead) days", icon: "calendar")
+                MetricCard(
+                    title: "Meetings",
+                    value: model.isGoogleCalendarConnected ? "\(model.upcomingMeetingCount) upcoming" : "Not connected",
+                    icon: "video",
+                )
+                MetricCard(
+                    title: "Cancelled",
+                    value: model.cancelledMeetingCount == 0 ? "None" : "\(model.cancelledMeetingCount) meetings",
+                    icon: "xmark.circle",
+                )
+                MetricCard(title: "Reminders", value: model.meetingReminderSummary, icon: "bell.badge")
+            }
+        }
+    }
+}
+
+
+private struct ScheduleStatusCard: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
         SurfaceCard {
             HStack(alignment: .center, spacing: 16) {
                 Image(systemName: scheduleIcon)
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(scheduleColor)
                     .frame(width: 46, height: 46)
-                    .background(
-                        scheduleColor
-                            .opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous),
-                    )
+                    .liquidGlassSurface(cornerRadius: 14, tint: scheduleColor)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(scheduleTitle)
@@ -244,7 +326,7 @@ private struct DashboardView: View {
                         .foregroundStyle(Color.leaveInk)
                     Text(scheduleDescription)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                 }
 
                 Spacer(minLength: 12)
@@ -252,7 +334,7 @@ private struct DashboardView: View {
                 Button(scheduleButtonTitle) {
                     model.installWeekdaySchedule()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.liquidGlassProminent)
                 .tint(.leaveTeal)
                 .disabled(model.isInstallingSchedule || !model.hasAutomatedCheck)
             }
@@ -300,7 +382,38 @@ private struct DashboardView: View {
         }
         return model.isWeekdayScheduleInstalled ? "Refresh schedule" : "Enable schedule"
     }
+}
 
+
+private enum MeetingGroupMode {
+    case day
+    case month
+    case year
+
+    init(daysAhead: Int) {
+        if daysAhead <= 31 {
+            self = .day
+        } else if daysAhead <= 180 {
+            self = .month
+        } else {
+            self = .year
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .day: return "day"
+        case .month: return "month"
+        case .year: return "year"
+        }
+    }
+}
+
+
+private struct MeetingGroup: Identifiable {
+    let id: Date
+    let title: String
+    let events: [GoogleCalendarEvent]
 }
 
 
@@ -310,121 +423,288 @@ private struct MeetingCalendarCard: View {
     var body: some View {
         SurfaceCard {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 8) {
-                    Label("Meeting calendar", systemImage: "video")
-                        .font(.headline)
-                        .foregroundStyle(Color.leaveInk)
-                    Spacer(minLength: 8)
-                    if model.isRefreshingCalendar {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Button {
-                        Task { await model.refreshCalendarEvents() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(!model.isGoogleCalendarConnected || model.isRefreshingCalendar)
-                    .help("Refresh meetings")
-                    .accessibilityLabel("Refresh Google Calendar meetings")
-                }
-
-                Text(calendarSubtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                content
+                MeetingCalendarHeader()
+                MeetingCancelledBanner(cancelledCount: model.cancelledMeetingCount)
+                MeetingCalendarContent(groups: groupedEvents)
             }
         }
     }
 
-    @ViewBuilder
-    private var content: some View {
-        if !model.isGoogleCalendarConnected {
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Connect Google Calendar in Settings", systemImage: "calendar.badge.plus")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.leaveOrange)
-                Text("Meetings from the Gmail owner’s primary calendar will appear here after OAuth is connected.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private var groupedEvents: [MeetingGroup] {
+        let mode = MeetingGroupMode(daysAhead: model.googleCalendar.meetingLookAheadDays)
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: model.calendarEvents) { event -> Date in
+            switch mode {
+            case .day:
+                return calendar.startOfDay(for: event.startDate)
+            case .month:
+                let components = calendar.dateComponents([.year, .month], from: event.startDate)
+                return calendar.date(from: components) ?? calendar.startOfDay(for: event.startDate)
+            case .year:
+                let components = calendar.dateComponents([.year], from: event.startDate)
+                return calendar.date(from: components) ?? calendar.startOfDay(for: event.startDate)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
-        } else if model.calendarEvents.isEmpty, model.isRefreshingCalendar {
+        }
+        return grouped
+            .map { key, events in
+                MeetingGroup(
+                    id: key,
+                    title: Self.title(for: key, mode: mode),
+                    events: events.sorted { $0.startDate < $1.startDate },
+                )
+            }
+            .sorted { $0.id < $1.id }
+    }
+
+    private static func title(for date: Date, mode: MeetingGroupMode) -> String {
+        switch mode {
+        case .day:
+            return date.formatted(date: .complete, time: .omitted)
+        case .month:
+            return date.formatted(.dateTime.month(.wide).year())
+        case .year:
+            return date.formatted(.dateTime.year())
+        }
+    }
+}
+
+
+private struct MeetingCalendarHeader: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Loading meetings…")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 8)
-        } else if model.calendarEvents.isEmpty {
-            Label("No upcoming meetings", systemImage: "checkmark.circle")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.leaveTeal)
-                .padding(.vertical, 8)
-        } else {
-            VStack(spacing: 8) {
-                ForEach(model.calendarEvents) { event in
-                    meetingRow(event)
+                Label("Meeting calendar", systemImage: "video")
+                    .font(.headline)
+                    .foregroundStyle(Color.leaveInk)
+                Spacer(minLength: 8)
+                if model.isRefreshingCalendar {
+                    ProgressView()
+                        .controlSize(.small)
                 }
+                Button {
+                    Task { await model.refreshCalendarEvents() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.liquidGlass)
+                .controlSize(.small)
+                .disabled(!model.isGoogleCalendarConnected || model.isRefreshingCalendar)
+                .help("Refresh meetings")
+                .accessibilityLabel("Refresh Google Calendar meetings")
             }
+
+            Text(calendarSubtitle)
+                .font(.subheadline)
+                .foregroundStyle(Color.leaveMuted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var calendarSubtitle: String {
         if model.isGoogleCalendarConnected {
+            let mode = MeetingGroupMode(daysAhead: model.googleCalendar.meetingLookAheadDays).title
             let refreshed = model.calendarLastRefreshDate.map { " Last refreshed \($0.formatted(.relative(presentation: .named)))." } ?? ""
-            return "Primary calendar for \(model.googleCalendarOwnerLabel), looking ahead \(model.googleCalendar.meetingLookAheadDays) days.\(refreshed)"
+            return "Primary calendar for \(model.googleCalendarOwnerLabel), looking ahead \(model.googleCalendar.meetingLookAheadDays) days and grouped by \(mode). Live refresh every \(model.googleCalendar.liveRefreshIntervalSeconds) seconds.\(refreshed)"
         }
-        return "Connect the Gmail owner’s Google Calendar to see meetings that shape today’s availability."
+        return "Connect the Gmail owner's Google Calendar to see meetings that shape today's availability."
     }
+}
 
-    private func meetingRow(_ event: GoogleCalendarEvent) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: event.isAllDay ? "calendar" : "video.fill")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.leaveTeal)
-                .frame(width: 26, height: 26)
-                .background(Color.leaveTeal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(event.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.leaveInk)
-                    .lineLimit(2)
-                Text("\(event.timeRangeText) · \(event.participantCountText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let location = event.location, !location.isEmpty {
-                    Text(location)
+private struct MeetingCancelledBanner: View {
+    let cancelledCount: Int
+
+    var body: some View {
+        if cancelledCount > 0 {
+            Label("\(cancelledCount) cancelled meeting\(cancelledCount == 1 ? "" : "s") found in this window", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.leaveOrange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .liquidGlassSurface(cornerRadius: 10, tint: .leaveOrange)
+        }
+    }
+}
+
+
+private struct MeetingCalendarContent: View {
+    @EnvironmentObject private var model: AppModel
+
+    let groups: [MeetingGroup]
+
+    var body: some View {
+        if !model.isGoogleCalendarConnected {
+            MeetingEmptyState(
+                icon: "calendar.badge.plus",
+                title: "Connect Google Calendar in Settings",
+                detail: "Meetings from the Gmail owner's primary calendar will appear here after OAuth is connected.",
+                color: .leaveOrange,
+            )
+        } else if model.calendarEvents.isEmpty, model.isRefreshingCalendar {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading meetings...")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.leaveMuted)
+            }
+            .padding(.vertical, 8)
+        } else if model.calendarEvents.isEmpty {
+            MeetingEmptyState(
+                icon: "checkmark.circle",
+                title: "No upcoming meetings",
+                detail: "Your primary calendar is clear for this look-ahead window.",
+                color: .leaveTeal,
+            )
+        } else {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(groups) { group in
+                    MeetingGroupSection(group: group)
+                }
+            }
+        }
+    }
+}
+
+
+private struct MeetingEmptyState: View {
+    let icon: String
+    let title: String
+    let detail: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: icon)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(color)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(Color.leaveMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+    }
+}
+
+
+private struct MeetingGroupSection: View {
+    let group: MeetingGroup
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(group.title.uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.leaveMuted)
+
+            VStack(spacing: 8) {
+                ForEach(group.events) { event in
+                    MeetingRow(event: event)
+                }
+            }
+        }
+    }
+}
+
+
+private struct MeetingRow: View {
+    let event: GoogleCalendarEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(statusColor)
+                    .frame(width: 26, height: 26)
+                    .liquidGlassSurface(cornerRadius: 8, tint: statusColor)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(event.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(event.isCancelled ? Color.leaveMuted : Color.leaveInk)
+                        .lineLimit(2)
+                    Text("\(event.timeRangeText) · \(event.participantCountText)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .foregroundStyle(Color.leaveMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let location = event.location, !location.isEmpty {
+                        Text(location)
+                            .font(.caption)
+                            .foregroundStyle(Color.leaveMuted)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                if let meetingLink = event.meetingLink, !event.isCancelled {
+                    Link(destination: meetingLink) {
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .buttonStyle(.liquidGlass)
+                    .controlSize(.small)
+                    .accessibilityLabel("Open \(event.title)")
                 }
             }
 
-            Spacer(minLength: 8)
-
-            if let meetingLink = event.meetingLink {
-                Link(destination: meetingLink) {
-                    Image(systemName: "arrow.up.right")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityLabel("Open \(event.title)")
+            if event.isCancelled {
+                Text("Cancelled")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.leaveOrange)
+            } else {
+                MeetingResponseControls(event: event)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlassSurface(cornerRadius: 12, tint: statusColor, interactive: true)
         .accessibilityElement(children: .combine)
+    }
+
+    private var icon: String {
+        if event.isCancelled {
+            return "xmark.circle.fill"
+        }
+        return event.isAllDay ? "calendar" : "video.fill"
+    }
+
+    private var statusColor: Color {
+        event.isCancelled ? .leaveOrange : .leaveTeal
+    }
+
+}
+
+
+private struct MeetingResponseControls: View {
+    @EnvironmentObject private var model: AppModel
+
+    let event: GoogleCalendarEvent
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Label(event.selfResponseStatus.title, systemImage: event.selfResponseStatus.icon)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.leaveMuted)
+
+            Spacer(minLength: 8)
+
+            ForEach([CalendarResponseStatus.accepted, .tentative, .declined]) { response in
+                Button {
+                    Task { await model.respondToMeeting(event, with: response) }
+                } label: {
+                    Image(systemName: response.icon)
+                }
+                .buttonStyle(.liquidGlass)
+                .controlSize(.small)
+                .disabled(event.selfResponseStatus == response)
+                .help(response.title)
+                .accessibilityLabel("\(response.title) \(event.title)")
+            }
+        }
     }
 }
 
@@ -469,14 +749,14 @@ private struct LeaveListCard: View {
                     .controlSize(.small)
                 Text("Loading leave…")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
         } else {
             Text("Your leave list will appear here. Use the refresh button to load it.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.leaveMuted)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 8)
         }
@@ -489,7 +769,7 @@ private struct LeaveListCard: View {
                 .foregroundStyle(Color.leaveTeal)
             Text("No monitored employee starts approved leave in the next \(model.daysAhead) days.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.leaveMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -504,7 +784,7 @@ private struct LeaveListCard: View {
                     .foregroundStyle(Color.leaveInk)
                 Text("\(leave.leaveTypeWithPeriod) · \(dateText(leave)) · \(leave.accountEmail)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -514,7 +794,7 @@ private struct LeaveListCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(leave.name), \(leave.leaveTypeWithPeriod), \(dateText(leave)), \(leave.accountEmail), \(leave.remainingDaysLabel(from: today))")
     }
@@ -532,7 +812,7 @@ private struct LeaveListCard: View {
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(color.opacity(0.14), in: Capsule())
+            .liquidGlassCapsule(tint: color)
             .fixedSize()
     }
 
@@ -563,7 +843,7 @@ private struct OnDemandChecksCard: View {
                         .foregroundStyle(Color.leaveInk)
                     Text("Run a one-off check that sends notifications, or confirm your notification delivery.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -575,7 +855,7 @@ private struct OnDemandChecksCard: View {
                     } label: {
                         Label(model.isChecking ? "Checking…" : "Check now", systemImage: "arrow.clockwise")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.liquidGlassProminent)
                     .tint(.leaveTeal)
                     .disabled(model.isChecking)
 
@@ -586,7 +866,7 @@ private struct OnDemandChecksCard: View {
                     } label: {
                         Label("Test notification", systemImage: "bell.badge")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.liquidGlass)
                     .disabled(model.notificationPermission != .authorized)
                 }
             }
@@ -651,7 +931,7 @@ private struct AccountCard: View {
                         .accessibilityLabel("Kakitangan password")
                     Text("Leave the password blank to keep the one already saved in Keychain.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                 }
 
                 HStack(spacing: 10) {
@@ -660,14 +940,14 @@ private struct AccountCard: View {
                     } label: {
                         Label("Add account", systemImage: "plus")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.liquidGlass)
 
                     Button(role: .destructive) {
                         model.removeSelectedAccount()
                     } label: {
                         Label("Remove account", systemImage: "trash")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.liquidGlass)
                     .disabled(model.accounts.count <= 1)
                 }
             }
@@ -708,11 +988,11 @@ private struct MonitoredEmailsCard: View {
                 Spacer()
                 Text("\(model.selectedAccountMonitoredEmployeeCount) selected")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
             }
             Text("Select the employees to watch. Only approved leave active within the look-ahead window is included.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.leaveMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -721,20 +1001,20 @@ private struct MonitoredEmailsCard: View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
                 TextField("Search name or email", text: $searchText)
                     .textFieldStyle(.plain)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .liquidGlassSurface(cornerRadius: 10, tint: .leaveTeal, interactive: true)
 
             Button {
                 Task { await model.loadManagedEmployees() }
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.liquidGlass)
             .disabled(model.isLoadingEmployees)
         }
     }
@@ -744,7 +1024,7 @@ private struct MonitoredEmailsCard: View {
         if model.isLoadingEmployees && (model.selectedAccount?.managedEmployees.isEmpty ?? true) {
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text("Loading employees…").foregroundStyle(.secondary)
+                Text("Loading employees…").foregroundStyle(Color.leaveMuted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
@@ -767,10 +1047,10 @@ private struct MonitoredEmailsCard: View {
                             } header: {
                                 Text(group.department.uppercased())
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.leaveMuted)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.vertical, 4)
-                                    .background(Color.leaveSurface)
+                                    .liquidGlassSurface(cornerRadius: 8)
                             }
                         }
                     }
@@ -788,22 +1068,19 @@ private struct MonitoredEmailsCard: View {
             HStack(spacing: 12) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
-                    .foregroundStyle(selected ? Color.leaveTeal : Color.secondary)
+                    .foregroundStyle(selected ? Color.leaveTeal : Color.leaveMuted)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(employee.displayName)
                         .foregroundStyle(Color.leaveInk)
                     Text(employee.email)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                 }
                 Spacer()
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(
-                selected ? Color.leaveTeal.opacity(0.10) : Color.leaveElevated,
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous),
-            )
+            .liquidGlassSurface(cornerRadius: 10, tint: selected ? .leaveTeal : nil, interactive: true)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -818,7 +1095,7 @@ private struct MonitoredEmailsCard: View {
                 .foregroundStyle(Color.leaveInk)
             Text("Add someone who isn’t in your managed team.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.leaveMuted)
 
             HStack(spacing: 8) {
                 TextField("name@g2g.com", text: $newEmail)
@@ -826,7 +1103,7 @@ private struct MonitoredEmailsCard: View {
                     .onSubmit(addManualEmail)
                     .accessibilityLabel("Add employee email manually")
                 Button("Add", action: addManualEmail)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.liquidGlass)
                     .disabled(!newEmail.contains("@"))
             }
         }
@@ -848,7 +1125,7 @@ private struct MonitoredEmailsCard: View {
             if model.selectedAccountMonitoredEmployeeCount == 0 {
                 Text("No users selected yet.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 8)
             } else {
@@ -886,7 +1163,7 @@ private struct MonitoredEmailsCard: View {
                     .foregroundStyle(Color.leaveInk)
                 Text(employee.email)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
             }
 
             Spacer(minLength: 8)
@@ -896,12 +1173,12 @@ private struct MonitoredEmailsCard: View {
             } label: {
                 Image(systemName: "xmark")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.liquidGlass)
             .accessibilityLabel("Remove \(employee.displayName)")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
     }
 
     private func selectedEmailRow(_ email: String) -> some View {
@@ -916,7 +1193,7 @@ private struct MonitoredEmailsCard: View {
                     .foregroundStyle(Color.leaveInk)
                 Text("Added by email")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
             }
 
             Spacer(minLength: 8)
@@ -926,12 +1203,12 @@ private struct MonitoredEmailsCard: View {
             } label: {
                 Image(systemName: "xmark")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.liquidGlass)
             .accessibilityLabel("Remove \(email)")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
     }
 
     private func errorState(_ message: String) -> some View {
@@ -941,24 +1218,24 @@ private struct MonitoredEmailsCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(message)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Try again") {
                     Task { await model.loadManagedEmployees() }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.liquidGlass)
                 .controlSize(.small)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .liquidGlassSurface(cornerRadius: 10, tint: .leaveTeal, interactive: true)
     }
 
     private func emptyState(_ message: String) -> some View {
         Text(message)
             .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.leaveMuted)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
     }
@@ -976,6 +1253,7 @@ private struct MonitoredEmailsCard: View {
 
 private struct GoogleCalendarCard: View {
     @EnvironmentObject private var model: AppModel
+    @State private var newReminderMinutes = 15
 
     var body: some View {
         SurfaceCard {
@@ -986,37 +1264,26 @@ private struct GoogleCalendarCard: View {
                         .foregroundStyle(Color.leaveInk)
                     Text("Connect the Gmail owner’s primary calendar and show meetings beside Kakitangan leave.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("OAuth desktop client ID")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.leaveInk)
-                    TextField("1234567890-abc.apps.googleusercontent.com", text: Binding(
-                        get: { model.googleCalendar.clientID },
-                        set: { model.updateGoogleCalendarClientID($0) },
-                    ))
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Google OAuth desktop client ID")
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: model.googleCalendar.isConfigured ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(model.googleCalendar.isConfigured ? Color.leaveTeal : Color.leaveOrange)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.googleCalendar.isConfigured ? "Firebase and Google Sign-In are configured" : "Firebase needs configuration")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Color.leaveInk)
+                        Text(clientIDDetail)
+                            .font(.caption)
+                            .foregroundStyle(Color.leaveMuted)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Client secret")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.leaveInk)
-                    SecureField("Optional for some desktop OAuth clients", text: Binding(
-                        get: { model.googleCalendar.clientSecret },
-                        set: { model.updateGoogleCalendarClientSecret($0) },
-                    ))
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Google OAuth client secret")
-                    Text("Use a Google Cloud OAuth client with Calendar API enabled. The refresh token is saved only in Keychain.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .padding(12)
+                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
 
                 Stepper(
                     "Meeting look ahead: \(model.googleCalendar.meetingLookAheadDays) days",
@@ -1028,13 +1295,95 @@ private struct GoogleCalendarCard: View {
                 )
                 .accessibilityLabel("Google Calendar meeting look-ahead window")
 
+                Stepper(
+                    "Live refresh: every \(model.googleCalendar.liveRefreshIntervalSeconds) seconds",
+                    value: Binding(
+                        get: { model.googleCalendar.liveRefreshIntervalSeconds },
+                        set: { model.updateGoogleCalendarLiveRefreshInterval($0) },
+                    ),
+                    in: 15...3_600,
+                    step: 15,
+                )
+                .accessibilityLabel("Google Calendar live refresh interval")
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label("Meeting reminders", systemImage: "bell.badge")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.leaveInk)
+                        Spacer()
+                        Text("\(model.googleCalendar.reminderLeadTimes.count)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.leaveTeal)
+                    }
+
+                    if model.googleCalendar.reminderLeadTimes.isEmpty {
+                        Text("No meeting reminders are scheduled.")
+                            .font(.caption)
+                            .foregroundStyle(Color.leaveMuted)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(model.googleCalendar.reminderLeadTimes.sorted()) { leadTime in
+                                HStack(spacing: 10) {
+                                    Image(systemName: "bell")
+                                        .foregroundStyle(Color.leaveTeal)
+                                        .frame(width: 20)
+                                    Text(leadTime.label)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.leaveInk)
+                                    Spacer()
+                                    Button(role: .destructive) {
+                                        model.removeMeetingReminder(id: leadTime.id)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.liquidGlass)
+                                    .controlSize(.small)
+                                    .accessibilityLabel("Remove \(leadTime.label)")
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Stepper(
+                            "\(newReminderMinutes) minutes before",
+                            value: $newReminderMinutes,
+                            in: 0...43_200,
+                            step: 5,
+                        )
+                        Button {
+                            model.addMeetingReminder(minutes: newReminderMinutes)
+                        } label: {
+                            Label("Add", systemImage: "plus")
+                        }
+                        .buttonStyle(.liquidGlass)
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach([5, 10, 15, 30, 60, 1_440], id: \.self) { minutes in
+                            Button(MeetingReminderLeadTimeLabel.minutes(minutes)) {
+                                newReminderMinutes = minutes
+                                model.addMeetingReminder(minutes: minutes)
+                            }
+                            .buttonStyle(.liquidGlass)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+                .padding(12)
+                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+
                 HStack(spacing: 12) {
                     Button {
                         Task { await model.connectGoogleCalendar() }
                     } label: {
                         Label(connectButtonTitle, systemImage: model.isGoogleCalendarConnected ? "arrow.triangle.2.circlepath" : "link")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.liquidGlassProminent)
                     .tint(.leaveTeal)
                     .disabled(model.isConnectingGoogleCalendar || !model.googleCalendar.isConfigured)
 
@@ -1043,7 +1392,7 @@ private struct GoogleCalendarCard: View {
                     } label: {
                         Label("Disconnect", systemImage: "xmark.circle")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.liquidGlass)
                     .disabled(!model.isGoogleCalendarConnected)
                 }
 
@@ -1052,11 +1401,11 @@ private struct GoogleCalendarCard: View {
                         .foregroundStyle(model.isGoogleCalendarConnected ? Color.leaveTeal : Color.leaveOrange)
                     Text(connectionDetail)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(12)
-                .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
             }
         }
     }
@@ -1068,11 +1417,40 @@ private struct GoogleCalendarCard: View {
         return model.isGoogleCalendarConnected ? "Reconnect Google" : "Connect Google"
     }
 
+    private var clientIDDetail: String {
+        if model.googleCalendar.isConfigured {
+            return GoogleCalendarConfiguration.bundleClientID
+        }
+        return "Add GoogleService-Info.plist from the Firebase console to the app Resources folder."
+    }
+
     private var connectionDetail: String {
         if model.isGoogleCalendarConnected {
-            return "Connected as \(model.googleCalendarOwnerLabel). Meetings are read from the primary calendar only."
+            return "Connected as \(model.googleCalendarOwnerLabel). The app reads events, watches for changes while open, and can update your RSVP on the primary calendar."
         }
-        return "Create a Desktop app OAuth client in Google Cloud, paste the client ID here, then connect in your browser."
+        return "Click Connect Google to sign in with the Google SDK. Reconnect if you previously granted read-only access so RSVP updates can be authorized."
+    }
+}
+
+
+private enum MeetingReminderLeadTimeLabel {
+    static func minutes(_ minutes: Int) -> String {
+        switch minutes {
+        case 0:
+            return "Start"
+        case 1..<60:
+            return "\(minutes)m"
+        case 60:
+            return "1h"
+        case 61..<1_440 where minutes % 60 == 0:
+            return "\(minutes / 60)h"
+        case 1_440:
+            return "1d"
+        case 1_441... where minutes % 1_440 == 0:
+            return "\(minutes / 1_440)d"
+        default:
+            return "\(minutes)m"
+        }
     }
 }
 
@@ -1090,7 +1468,7 @@ private struct NotificationTimesCard: View {
                             .foregroundStyle(Color.leaveInk)
                         Text("The app checks Kakitangan at every selected time, Monday through Friday.")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.leaveMuted)
                     }
                     Spacer()
                 }
@@ -1113,7 +1491,7 @@ private struct NotificationTimesCard: View {
                 } label: {
                     Label("Add time", systemImage: "plus")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.liquidGlass)
 
                 Divider()
 
@@ -1123,7 +1501,7 @@ private struct NotificationTimesCard: View {
                             .foregroundStyle(Color.leaveInk)
                         Text("Runs a hidden leave check after you sign in to this Mac.")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.leaveMuted)
                     }
                 }
                 .toggleStyle(.switch)
@@ -1131,7 +1509,7 @@ private struct NotificationTimesCard: View {
 
                 Text("Deleting the final time stops weekday checks. Turn off Check at sign-in too to disable every automatic check; Check now remains available.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
             }
         }
     }
@@ -1161,12 +1539,12 @@ private struct NotificationTimesCard: View {
             } label: {
                 Image(systemName: "trash")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.liquidGlass)
             .accessibilityLabel("Delete \(model.date(for: notificationTime).formatted(date: .omitted, time: .shortened)) notification time")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
     }
 }
 
@@ -1193,7 +1571,7 @@ private struct LoginItemCard: View {
                             .foregroundStyle(Color.leaveInk)
                         Text(statusDetail)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.leaveMuted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -1219,19 +1597,19 @@ private struct LoginItemCard: View {
                     } label: {
                         Label("Open Login Items", systemImage: "gearshape")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.liquidGlass)
                     .disabled(!model.canConfigureOpenAtLogin)
 
                     Button("Refresh status") {
                         model.refreshLoginItemStatus()
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.liquidGlass)
                     .disabled(!model.canConfigureOpenAtLogin)
                 }
 
                 Text("This opens the app window after you sign in and appears in System Settings → General → Login Items. It is separate from Check at sign-in, which runs a hidden leave check.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1292,7 +1670,7 @@ private struct AppVisibilityCard: View {
                         .foregroundStyle(Color.leaveInk)
                     Text("Choose where Kakitangan Companion stays available while you work. The change applies now; save setup to keep it.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                 }
 
                 Picker(
@@ -1320,11 +1698,11 @@ private struct AppVisibilityCard: View {
                         .frame(width: 20)
                     Text(visibilityDetail)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(12)
-                .background(Color.leaveElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
             }
         }
     }
@@ -1365,7 +1743,7 @@ private struct UpdatesCard: View {
                         .foregroundStyle(Color.leaveInk)
                     Text("Version \(Self.appVersion). Updates are downloaded from the secure Sparkle feed.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -1378,7 +1756,7 @@ private struct UpdatesCard: View {
                             .foregroundStyle(Color.leaveInk)
                         Text(lastCheckDescription)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.leaveMuted)
                     }
                 }
                 .toggleStyle(.switch)
@@ -1389,7 +1767,7 @@ private struct UpdatesCard: View {
                 } label: {
                     Label("Check for Updates…", systemImage: "arrow.clockwise")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.liquidGlass)
                 .disabled(!updater.canCheckForUpdates)
             }
         }
@@ -1429,7 +1807,7 @@ private struct PermissionCard: View {
                         .foregroundStyle(Color.leaveInk)
                     Text(permissionDetail)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -1441,7 +1819,7 @@ private struct PermissionCard: View {
                             await model.requestNotificationPermission()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.liquidGlassProminent)
                     .tint(.leaveTeal)
                     .disabled(model.isRequestingPermission)
                 }
@@ -1513,14 +1891,15 @@ private struct MetricCard: View {
                 Text(title.uppercased())
                     .font(.caption.weight(.semibold))
                     .tracking(0.8)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.leaveMuted)
                 Text(value)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.leaveInk)
-                    .lineLimit(2)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
-            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
         }
     }
 }
@@ -1536,7 +1915,7 @@ private struct StatusMessage: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.leaveTeal.opacity(0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .liquidGlassSurface(cornerRadius: 14, tint: .leaveTeal)
     }
 }
 
@@ -1548,7 +1927,7 @@ private struct SurfaceCard<Content: View>: View {
         content
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.leaveSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .liquidGlassSurface(cornerRadius: 22)
             .overlay {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(Color.leaveTeal.opacity(0.16), lineWidth: 1)
@@ -1562,10 +1941,87 @@ private struct AppMark: View {
     var body: some View {
         Image(systemName: "calendar.badge.clock")
             .font(.system(size: 22, weight: .bold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.leaveInk)
             .frame(width: 48, height: 48)
-            .background(Color.leaveTeal, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .liquidGlassSurface(cornerRadius: 16, tint: .leaveTeal, interactive: true)
             .accessibilityHidden(true)
+    }
+}
+
+
+private struct LiquidGlassButtonStyle: ButtonStyle {
+    let isProminent: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(isProminent ? .semibold : .regular))
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .foregroundStyle(Color.leaveInk)
+            .liquidGlassSurface(
+                cornerRadius: 9,
+                tint: isProminent ? .leaveTeal : nil,
+                interactive: true,
+            )
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+    }
+}
+
+
+private extension ButtonStyle where Self == LiquidGlassButtonStyle {
+    static var liquidGlass: LiquidGlassButtonStyle {
+        LiquidGlassButtonStyle(isProminent: false)
+    }
+
+    static var liquidGlassProminent: LiquidGlassButtonStyle {
+        LiquidGlassButtonStyle(isProminent: true)
+    }
+}
+
+
+private extension View {
+    @ViewBuilder
+    func liquidGlassSurface(cornerRadius: CGFloat, tint: Color? = nil, interactive: Bool = false) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let resolvedTint = tint ?? Color.leaveTeal
+        if #available(macOS 26.0, *) {
+            self
+                .background(Color.leaveGlassBase, in: shape)
+                .overlay {
+                    shape
+                        .stroke(resolvedTint.opacity(tint == nil ? 0.16 : 0.30), lineWidth: tint == nil ? 1 : 1.2)
+                }
+                .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+        } else {
+            self
+                .background(Color.leaveGlassBase, in: shape)
+                .overlay {
+                    shape
+                        .stroke(resolvedTint.opacity(tint == nil ? 0.16 : 0.30), lineWidth: tint == nil ? 1 : 1.2)
+                }
+        }
+    }
+
+    @ViewBuilder
+    func liquidGlassCapsule(tint: Color? = nil, interactive: Bool = false) -> some View {
+        let resolvedTint = tint ?? Color.leaveTeal
+        if #available(macOS 26.0, *) {
+            self
+                .background(Color.leaveGlassBase, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(resolvedTint.opacity(tint == nil ? 0.16 : 0.30), lineWidth: 1)
+                }
+                .glassEffect(interactive ? .regular.interactive() : .regular, in: Capsule())
+        } else {
+            self
+                .background(Color.leaveGlassBase, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(resolvedTint.opacity(tint == nil ? 0.16 : 0.30), lineWidth: 1)
+                }
+        }
     }
 }
 
@@ -1583,16 +2039,24 @@ private extension Color {
         light: NSColor(calibratedRed: 0.910, green: 0.973, blue: 0.949, alpha: 1),
         dark: NSColor(calibratedRed: 0.102, green: 0.220, blue: 0.196, alpha: 1),
     ))
+    static let leaveGlassBase = Color(nsColor: .leaveAdaptive(
+        light: NSColor(calibratedRed: 0.965, green: 0.992, blue: 0.984, alpha: 0.74),
+        dark: NSColor(calibratedRed: 0.066, green: 0.176, blue: 0.158, alpha: 0.78),
+    ))
     static let leaveInk = Color(nsColor: .leaveAdaptive(
         light: NSColor(calibratedRed: 0.078, green: 0.306, blue: 0.290, alpha: 1),
         dark: NSColor(calibratedRed: 0.894, green: 0.957, blue: 0.933, alpha: 1),
     ))
+    static let leaveMuted = Color(nsColor: .leaveAdaptive(
+        light: NSColor(calibratedRed: 0.230, green: 0.392, blue: 0.372, alpha: 1),
+        dark: NSColor(calibratedRed: 0.690, green: 0.805, blue: 0.772, alpha: 1),
+    ))
     static let leaveTeal = Color(nsColor: .leaveAdaptive(
-        light: NSColor(calibratedRed: 0.051, green: 0.580, blue: 0.533, alpha: 1),
+        light: NSColor(calibratedRed: 0.030, green: 0.450, blue: 0.400, alpha: 1),
         dark: NSColor(calibratedRed: 0.176, green: 0.831, blue: 0.749, alpha: 1),
     ))
     static let leaveOrange = Color(nsColor: .leaveAdaptive(
-        light: NSColor(calibratedRed: 0.976, green: 0.451, blue: 0.118, alpha: 1),
+        light: NSColor(calibratedRed: 0.720, green: 0.270, blue: 0.020, alpha: 1),
         dark: NSColor(calibratedRed: 0.992, green: 0.729, blue: 0.455, alpha: 1),
     ))
 }

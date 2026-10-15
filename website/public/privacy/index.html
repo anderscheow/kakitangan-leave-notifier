@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy | Kakitangan Companion</title>
+  <meta name="description" content="How the Kakitangan Companion macOS app handles Kakitangan credentials, Google Calendar data, notifications, and updates.">
+  <link rel="canonical" href="https://kakitangan-companion.web.app/privacy">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0fdfa">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#061614">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="/">
+        <img src="/favicon.png" alt="" width="32" height="32">
+        Kakitangan Companion
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/privacy">Privacy policy</a>
+        <a class="hide-sm" href="https://github.com/anderscheow/kakitangan-leave-notifier">GitHub</a>
+        <a class="btn btn-primary" href="https://github.com/anderscheow/kakitangan-leave-notifier/releases/latest">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="article">
+    <div class="wrap">
+      <header>
+        <h1>Privacy Policy</h1>
+        <p>Effective 14 October 2026. Applies to the Kakitangan Companion app for macOS (bundle identifier <strong>com.kakitangan.leave-notifier</strong>), published by Anders Cheow.</p>
+      </header>
+
+      <p>Kakitangan Companion is a desktop utility that shows upcoming leave from Kakitangan and upcoming meetings from Google Calendar, and sends local notifications about them. This policy explains what information the app handles, where it is stored, and who can see it.</p>
+
+      <div class="callout">
+        <p>The short version: the app has no server of its own. Everything it collects stays on your Mac, and the only services it talks to are Kakitangan, Google, and GitHub (for software updates).</p>
+      </div>
+
+      <h2>Information the app handles</h2>
+
+      <h3>Kakitangan account details</h3>
+      <p>To check leave you enter the email address and password of one or more Kakitangan accounts, and choose the employees to monitor.</p>
+      <ul>
+        <li><strong>Passwords</strong> are stored only in the macOS Keychain on your Mac.</li>
+        <li><strong>Account emails, monitored employee emails, the look-ahead window, notification times, and display preferences</strong> are stored in the app's local preferences on your Mac.</li>
+        <li>Credentials are sent only to Kakitangan's own servers to sign in and fetch leave records. The app does not forward them anywhere else.</li>
+      </ul>
+
+      <h3>Google account and Google Calendar data</h3>
+      <p>Connecting Google Calendar is optional. If you connect it, the app uses Google Sign-In and requests the following permission:</p>
+      <ul>
+        <li><strong>View and edit events on all your calendars</strong> (<code>https://www.googleapis.com/auth/calendar.events</code>). The app uses this to read events on your primary calendar for the look-ahead window you set, and to update your own response (accept, decline, or tentative) when you choose to respond from the app.</li>
+      </ul>
+      <p>The app also receives the email address and basic profile of the Google account you sign in with, which it shows so you can see which account is connected.</p>
+      <ul>
+        <li><strong>Where it is stored:</strong> Google Sign-In keeps the OAuth tokens in the macOS Keychain on your Mac. Event details are held in memory while the app runs to display the meeting list and to schedule local reminders. They are not written to a database and are not uploaded anywhere.</li>
+        <li><strong>How it is used:</strong> only to show meetings, to alert you about cancellations, to schedule reminders, and to send your RSVP to Google Calendar when you ask.</li>
+        <li><strong>Who can see it:</strong> nobody other than you. Calendar data is never shared with, sold to, or transferred to any third party, and it is never used for advertising or to train machine learning models.</li>
+      </ul>
+      <p>Kakitangan Companion's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+      <h3>Notifications</h3>
+      <p>All notifications are generated and delivered locally through macOS. The app does not use push notification servers.</p>
+
+      <h3>Software updates</h3>
+      <p>The app checks for updates once a day using the Sparkle framework. The check downloads a small feed file and, when you accept an update, the installer from GitHub Releases. GitHub receives the standard information in any web request, such as your IP address. No system profile or usage statistics are sent with update checks.</p>
+
+      <h3>Firebase</h3>
+      <p>The app includes the Firebase core library so that it can be registered with Google Cloud and use Google Sign-In. Firebase Analytics, advertising identifiers, and crash reporting are not enabled. The app does not create Firebase user accounts.</p>
+
+      <h2>What the app does not do</h2>
+      <ul>
+        <li>It does not operate any server, database, or account system of its own.</li>
+        <li>It does not collect analytics, telemetry, or usage statistics.</li>
+        <li>It does not show advertising or use advertising identifiers.</li>
+        <li>It does not sell or share personal information.</li>
+      </ul>
+
+      <h2>Your choices and data deletion</h2>
+      <ul>
+        <li><strong>Disconnect Google Calendar</strong> at any time from the Google Calendar card in the app. This revokes the app's token with Google and clears the connected account from the app.</li>
+        <li><strong>Review or revoke access</strong> from your Google Account at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+        <li><strong>Remove a Kakitangan account</strong> from Edit setup inside the app. Removing the app's Keychain items (named after the app) in Keychain Access deletes saved passwords.</li>
+        <li><strong>Uninstalling</strong> the app removes the app and its scheduled background task. Preferences live in the app's container under your user Library folder and can be deleted from there.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>The app is a workplace tool and is not directed at children under 13.</p>
+
+      <h2>Changes to this policy</h2>
+      <p>If the way the app handles information changes, this page will be updated and the effective date revised. Significant changes will also be noted in the release notes on GitHub.</p>
+
+      <h2>Contact</h2>
+      <p>Questions about this policy or about your data can be raised by opening an issue at <a href="https://github.com/anderscheow/kakitangan-leave-notifier/issues">github.com/anderscheow/kakitangan-leave-notifier/issues</a>.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>Kakitangan Companion is built by Anders Cheow and is not affiliated with Kakitangan or Google.</p>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="/privacy">Privacy policy</a>
+        <a href="https://github.com/anderscheow/kakitangan-leave-notifier">GitHub</a>
+        <a href="https://github.com/anderscheow/kakitangan-leave-notifier/releases">Releases</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

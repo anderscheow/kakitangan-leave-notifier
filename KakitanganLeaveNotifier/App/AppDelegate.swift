@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var statusItem: NSStatusItem?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        GoogleCalendarService.configureSignIn()
         UNUserNotificationCenter.current().delegate = self
         appVisibilityObserver = NotificationCenter.default.addObserver(
             forName: .appVisibilityDidChange,

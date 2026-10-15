@@ -1,4 +1,5 @@
 import AppKit
+import GoogleSignIn
 import SwiftUI
 
 
@@ -12,6 +13,9 @@ struct KakitanganLeaveNotifierApp: App {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 680, minHeight: 620)
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
+                }
         }
         .commands {
             // ⌘Q closes the window and leaves the app running in the menu bar instead of quitting.
