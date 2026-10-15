@@ -47,6 +47,41 @@ and is kept after restart when you save the setup configuration.
 The password is stored in macOS Keychain. The app stores only the account email,
 monitored emails, and look-ahead window in UserDefaults.
 
+## Firebase and Google Sign-In
+
+The app is registered in the **Kakitangan Companion** Firebase project
+(`kakitangan-compa-1791447427320`, Google Cloud project number `284626938362`).
+`KakitanganLeaveNotifier/Resources/GoogleService-Info.plist` is the single source of
+truth for the Google OAuth client. No Firebase SDK is linked: Google Sign-In only reads
+`GIDClientID` from `Info.plist`, so `GoogleCalendarService.configureSignIn()` reads
+`CLIENT_ID` from the plist and sets `GIDSignIn.sharedInstance.configuration` in
+`AppDelegate.applicationWillFinishLaunching`. Without that configuration, interactive
+sign-in raises an exception. No Firebase Auth users are created.
+
+The `CFBundleURLSchemes` entry in `Info.plist` must equal `REVERSED_CLIENT_ID` from the
+plist. If the plist is re-downloaded from the Firebase console and the client changes,
+update the URL scheme too.
+
+## Website and privacy policy
+
+`website/` holds the static homepage and privacy policy served by Firebase Hosting on the
+`kakitangan-companion` site:
+
+```
+https://kakitangan-companion.web.app/
+https://kakitangan-companion.web.app/privacy
+```
+
+Deploy changes with:
+
+```zsh
+cd website
+firebase deploy --only hosting:companion
+```
+
+These two URLs are the **Application home page** and **Privacy policy** links for the
+OAuth consent screen in Google Auth Platform.
+
 ## Software updates and release automation
 
 The app uses [Sparkle 2](https://sparkle-project.org/) for secure in-app updates.
