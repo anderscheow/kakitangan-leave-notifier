@@ -94,8 +94,10 @@ jobs:
           set -euo pipefail
           ARCHIVE_PATH="$RUNNER_TEMP/KakitanganLeaveNotifier.xcarchive"
           SIGNING_ARGUMENTS=()
+          # Only the app target reads RELEASE_PROVISIONING_PROFILE_SPECIFIER. Setting
+          # PROVISIONING_PROFILE_SPECIFIER here would apply to SPM resource bundles, which reject profiles.
           if [[ -n "${DEVELOPER_ID_PROVISIONING_PROFILE_NAME:-}" ]]; then
-            SIGNING_ARGUMENTS+=("PROVISIONING_PROFILE_SPECIFIER=$DEVELOPER_ID_PROVISIONING_PROFILE_NAME")
+            SIGNING_ARGUMENTS+=("RELEASE_PROVISIONING_PROFILE_SPECIFIER=$DEVELOPER_ID_PROVISIONING_PROFILE_NAME")
           fi
 
           xcodebuild archive \
