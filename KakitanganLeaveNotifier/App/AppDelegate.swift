@@ -124,6 +124,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             action: #selector(openLeaveWatch),
             keyEquivalent: "",
         )
+        menu.addItem(.separator())
+        for (index, section) in DashboardSection.allCases.enumerated() {
+            let item = menu.addItem(
+                withTitle: section.rawValue,
+                action: #selector(showDashboardSection(_:)),
+                keyEquivalent: "\(index + 1)",
+            )
+            item.representedObject = section.rawValue
+        }
+        let newMeetingItem = menu.addItem(
+            withTitle: "New Meeting…",
+            action: #selector(newMeeting),
+            keyEquivalent: "n",
+        )
+        newMeetingItem.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(.separator())
         menu.addItem(
             withTitle: "Check now",
             action: #selector(checkNow),
@@ -145,14 +161,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @objc private func openLeaveWatch() {
+        route(nil)
+    }
+
+    @objc private func showDashboardSection(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let section = DashboardSection(rawValue: rawValue) else {
+            return
+        }
+        route(.section(section))
+    }
+
+    @objc private func newMeeting() {
+        route(.newMeeting)
+    }
+
+    /// Brings the companion window forward and hands it `request`. Reuses whichever window is
+    /// already on screen so shortcuts never spawn a second window backed by a separate model.
+    func route(_ request: DashboardRequest?) {
         NSApp.unhide(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        if let window = visibleCompanionWindow, window !== leaveWatchWindow {
+            window.makeKeyAndOrderFront(nil)
+            if let request {
+                NotificationCenter.default.post(
+                    name: .dashboardRequested,
+                    object: nil,
+                    userInfo: [DashboardRequest.userInfoKey: request],
+                )
+            }
+            return
+        }
+
         if let leaveWatchWindow {
             leaveWatchWindow.orderFrontRegardless()
             leaveWatchWindow.makeKey()
-            return
+        } else {
+            presentLeaveWatchWindow()
         }
-        presentLeaveWatchWindow()
+        // This window's model is owned here, so update it directly rather than by broadcast.
+        if let request {
+            leaveWatchModel?.handle(request)
+        }
+    }
+
+    private var visibleCompanionWindow: NSWindow? {
+        NSApp.windows.first { window in
+            window.styleMask.contains(.titled) && (window.isVisible || window.isMiniaturized)
+        }
     }
 
     @objc private func checkNow() {

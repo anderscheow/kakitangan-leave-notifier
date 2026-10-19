@@ -23,6 +23,16 @@
 		A10000000000000000000015 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* AppUpdater.swift */; };
 		A10000000000000000000016 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000002 /* Sparkle */; };
 		A10000000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* Assets.xcassets */; };
+		BF00F37D3085B077001BB55D /* LeaveDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F37C3085B077001BB55D /* LeaveDesignSystem.swift */; };
+		BF00F37F3085B15D001BB55D /* MeetingDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F37E3085B15D001BB55D /* MeetingDraft.swift */; };
+		BF00F3813085B246001BB55D /* MeetingAttendeesPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F3803085B246001BB55D /* MeetingAttendeesPopover.swift */; };
+		BF00F3833085B28E001BB55D /* NewMeetingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F3823085B28E001BB55D /* NewMeetingSheet.swift */; };
+		BF00F3853085B7B5001BB55D /* MeetingSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F3843085B7B5001BB55D /* MeetingSuggestions.swift */; };
+		BF00F3873085B7C9001BB55D /* GooglePeopleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F3863085B7C9001BB55D /* GooglePeopleService.swift */; };
+		BF00F3893085B7CF001BB55D /* MacContactsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F3883085B7CF001BB55D /* MacContactsService.swift */; };
+		BF00F38B3085B7D3001BB55D /* PlaceSearchCompleter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F38A3085B7D3001BB55D /* PlaceSearchCompleter.swift */; };
+		BF00F38D3085B7F5001BB55D /* MeetingSuggestionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F38C3085B7F5001BB55D /* MeetingSuggestionStore.swift */; };
+		BF00F38F3085B834001BB55D /* MeetingAutocompleteFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF00F38E3085B834001BB55D /* MeetingAutocompleteFields.swift */; };
 		BFD7093A30777F13003A5454 /* GoogleCalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD7093930777F12003A5454 /* GoogleCalendarService.swift */; };
 		BFD7093D307788F8003A5454 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = BFD7093C307788F8003A5454 /* GoogleSignIn */; };
 		BFD7093F307788F8003A5454 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BFD7093E307788F8003A5454 /* GoogleSignInSwift */; };
@@ -48,6 +58,16 @@
 		A20000000000000000000016 /* KakitanganLeaveNotifier.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KakitanganLeaveNotifier.entitlements; sourceTree = "<group>"; };
 		A20000000000000000000018 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		A20000000000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BF00F37C3085B077001BB55D /* LeaveDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaveDesignSystem.swift; sourceTree = "<group>"; };
+		BF00F37E3085B15D001BB55D /* MeetingDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDraft.swift; sourceTree = "<group>"; };
+		BF00F3803085B246001BB55D /* MeetingAttendeesPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingAttendeesPopover.swift; sourceTree = "<group>"; };
+		BF00F3823085B28E001BB55D /* NewMeetingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewMeetingSheet.swift; sourceTree = "<group>"; };
+		BF00F3843085B7B5001BB55D /* MeetingSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingSuggestions.swift; sourceTree = "<group>"; };
+		BF00F3863085B7C9001BB55D /* GooglePeopleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooglePeopleService.swift; sourceTree = "<group>"; };
+		BF00F3883085B7CF001BB55D /* MacContactsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacContactsService.swift; sourceTree = "<group>"; };
+		BF00F38A3085B7D3001BB55D /* PlaceSearchCompleter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceSearchCompleter.swift; sourceTree = "<group>"; };
+		BF00F38C3085B7F5001BB55D /* MeetingSuggestionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingSuggestionStore.swift; sourceTree = "<group>"; };
+		BF00F38E3085B834001BB55D /* MeetingAutocompleteFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingAutocompleteFields.swift; sourceTree = "<group>"; };
 		BFD7093930777F12003A5454 /* GoogleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarService.swift; sourceTree = "<group>"; };
 		BFD70940307F1924003A5454 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -96,6 +116,7 @@
 				A20000000000000000000002 /* AppDelegate.swift */,
 				A20000000000000000000003 /* AppModel.swift */,
 				A20000000000000000000018 /* AppUpdater.swift */,
+				BF00F38C3085B7F5001BB55D /* MeetingSuggestionStore.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -110,6 +131,9 @@
 				A20000000000000000000009 /* NotificationService.swift */,
 				A20000000000000000000010 /* LaunchAgentService.swift */,
 				BFD7093930777F12003A5454 /* GoogleCalendarService.swift */,
+				BF00F3863085B7C9001BB55D /* GooglePeopleService.swift */,
+				BF00F3883085B7CF001BB55D /* MacContactsService.swift */,
+				BF00F38A3085B7D3001BB55D /* PlaceSearchCompleter.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -118,6 +142,8 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000011 /* LeaveModels.swift */,
+				BF00F37E3085B15D001BB55D /* MeetingDraft.swift */,
+				BF00F3843085B7B5001BB55D /* MeetingSuggestions.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -143,6 +169,10 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000004 /* ContentView.swift */,
+				BF00F37C3085B077001BB55D /* LeaveDesignSystem.swift */,
+				BF00F3803085B246001BB55D /* MeetingAttendeesPopover.swift */,
+				BF00F3823085B28E001BB55D /* NewMeetingSheet.swift */,
+				BF00F38E3085B834001BB55D /* MeetingAutocompleteFields.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -241,13 +271,23 @@
 				A10000000000000000000002 /* AppDelegate.swift in Sources */,
 				A10000000000000000000003 /* AppModel.swift in Sources */,
 				BFD7093A30777F13003A5454 /* GoogleCalendarService.swift in Sources */,
+				BF00F37D3085B077001BB55D /* LeaveDesignSystem.swift in Sources */,
+				BF00F38D3085B7F5001BB55D /* MeetingSuggestionStore.swift in Sources */,
 				A10000000000000000000004 /* ContentView.swift in Sources */,
 				A10000000000000000000005 /* ConfigurationStore.swift in Sources */,
 				A10000000000000000000006 /* KeychainStore.swift in Sources */,
 				A10000000000000000000007 /* KakitanganAPIClient.swift in Sources */,
+				BF00F38F3085B834001BB55D /* MeetingAutocompleteFields.swift in Sources */,
+				BF00F3813085B246001BB55D /* MeetingAttendeesPopover.swift in Sources */,
 				A10000000000000000000008 /* LeaveCheckService.swift in Sources */,
 				A10000000000000000000009 /* NotificationService.swift in Sources */,
+				BF00F3893085B7CF001BB55D /* MacContactsService.swift in Sources */,
+				BF00F38B3085B7D3001BB55D /* PlaceSearchCompleter.swift in Sources */,
+				BF00F3873085B7C9001BB55D /* GooglePeopleService.swift in Sources */,
+				BF00F3833085B28E001BB55D /* NewMeetingSheet.swift in Sources */,
+				BF00F3853085B7B5001BB55D /* MeetingSuggestions.swift in Sources */,
 				A10000000000000000000010 /* LaunchAgentService.swift in Sources */,
+				BF00F37F3085B15D001BB55D /* MeetingDraft.swift in Sources */,
 				A10000000000000000000011 /* LeaveModels.swift in Sources */,
 				A10000000000000000000015 /* AppUpdater.swift in Sources */,
 			);
@@ -285,7 +325,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U3DRA89HW8;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KakitanganLeaveNotifier/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Kakitangan Leave Notifier";
@@ -312,7 +354,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U3DRA89HW8;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KakitanganLeaveNotifier/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Kakitangan Leave Notifier";

@@ -316,7 +316,7 @@ enum NotifierError: LocalizedError {
         case .googleCalendarRequestFailed:
             return "Google Calendar meetings could not be retrieved."
         case let .googleCalendarRequestFailedDetail(detail):
-            return "Google Calendar meetings could not be retrieved: \(detail)"
+            return "Google Calendar request failed: \(detail)"
         case let .googleCalendarResponseDecodingFailed(detail):
             return "Google Calendar returned meetings in an unexpected format: \(detail)"
         }

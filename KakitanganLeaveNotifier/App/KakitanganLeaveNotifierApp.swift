@@ -37,6 +37,21 @@ struct KakitanganLeaveNotifierApp: App {
                 CheckForUpdatesCommand()
             }
             CommandMenu("Kakitangan Companion") {
+                ForEach(Array(DashboardSection.allCases.enumerated()), id: \.element) { index, section in
+                    Button(section.rawValue) {
+                        appDelegate.route(.section(section))
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                }
+
+                // ⇧⌘N keeps the system ⌘N "New Window" command intact.
+                Button("New Meeting…") {
+                    appDelegate.route(.newMeeting)
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+
+                Divider()
+
                 Button("Check Now") {
                     Task { await BackgroundCheckRunner.run() }
                 }

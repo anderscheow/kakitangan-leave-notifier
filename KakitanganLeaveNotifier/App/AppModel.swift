@@ -56,9 +56,28 @@ struct MonitoredAccount: Identifiable, Equatable {
 }
 
 
+enum DashboardSection: String, CaseIterable, Identifiable {
+    case overview = "Overview"
+    case meetings = "Meetings"
+    case leave = "Leave"
+
+    var id: String { rawValue }
+}
+
+
+/// Navigation requested from outside the window (status-bar menu, main menu).
+enum DashboardRequest: Equatable {
+    case section(DashboardSection)
+    case newMeeting
+
+    static let userInfoKey = "dashboardRequest"
+}
+
+
 extension Notification.Name {
     static let appVisibilityDidChange = Notification.Name("com.kakitangan.leave-notifier.app-visibility-did-change")
     static let openSettingsRequested = Notification.Name("com.kakitangan.leave-notifier.open-settings-requested")
+    static let dashboardRequested = Notification.Name("com.kakitangan.leave-notifier.dashboard-requested")
 }
 
 
@@ -92,6 +111,9 @@ final class AppModel: ObservableObject {
     @Published var lastCancelledMeetingCount: Int = 0
     @Published var isConnectingGoogleCalendar: Bool = false
     @Published var isRefreshingCalendar: Bool = false
+    @Published var dashboardSection: DashboardSection = .overview
+    @Published var isPresentingNewMeeting: Bool = false
+    @Published private(set) var isCreatingMeeting: Bool = false
     @Published var statusMessage: String = ""
     @Published var isChecking: Bool = false
     @Published var isRefreshing: Bool = false
@@ -110,6 +132,9 @@ final class AppModel: ObservableObject {
     private var knownCalendarEventIDs: Set<String> = []
     private var alertedCancelledEventIDs: Set<String> = []
     private var openSettingsObserver: NSObjectProtocol?
+
+    /// Cached for the session so reopening New Meeting doesn't refetch history.
+    let meetingSuggestions = MeetingSuggestionStore()
 
     init() {
         let configuration = configurationStore.load()
@@ -677,7 +702,7 @@ final class AppModel: ObservableObject {
 
         do {
             let service = GoogleCalendarService()
-            let user = try await service.signIn(presenting: NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible })
+            let user = try await service.signIn(presenting: NSApp.oauthPresentationWindow)
             googleCalendar.clientID = GoogleCalendarConfiguration.bundleClientID
             googleCalendar.ownerEmail = service.ownerEmail(for: user)
             let configuration = try persistConfiguration(requiresPassword: false)
@@ -737,10 +762,7 @@ final class AppModel: ObservableObject {
         do {
             let service = GoogleCalendarService()
             let user = try await service.restorePreviousSignIn()
-            let scopedUser = try await service.userWithCalendarEventsScope(
-                user,
-                presenting: NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible },
-            )
+            let scopedUser = try await service.userWithCalendarEventsScope(user, presenting: NSApp.oauthPresentationWindow)
             let accessToken = try await service.accessToken(for: scopedUser)
             let updated = try await service.updateResponse(
                 event: event,
@@ -754,6 +776,79 @@ final class AppModel: ObservableObject {
         } catch {
             statusMessage = googleCalendarStatusMessage(for: error)
         }
+    }
+
+    func handle(_ request: DashboardRequest) {
+        switch request {
+        case let .section(section):
+            dashboardSection = section
+        case .newMeeting:
+            beginNewMeeting()
+        }
+    }
+
+    func beginNewMeeting() {
+        guard isGoogleCalendarConnected else {
+            statusMessage = "Connect Google Calendar in Settings to create meetings."
+            return
+        }
+        dashboardSection = .meetings
+        isPresentingNewMeeting = true
+    }
+
+    /// Creates the meeting and refreshes the list. Returns `false` when the sheet should stay open.
+    func createMeeting(_ draft: MeetingDraft) async -> Bool {
+        guard !isCreatingMeeting else {
+            return false
+        }
+        isCreatingMeeting = true
+        defer { isCreatingMeeting = false }
+
+        do {
+            let service = GoogleCalendarService()
+            let user = try await service.userWithCalendarEventsScope(
+                service.restorePreviousSignIn(),
+                presenting: NSApp.oauthPresentationWindow,
+            )
+            let created = try await service.createEvent(
+                draft,
+                ownerEmail: service.ownerEmail(for: user),
+                accessToken: service.accessToken(for: user),
+            )
+            await refreshCalendarEvents()
+            statusMessage = "Created \"\(created.title)\" for \(created.timeRangeText)."
+            return true
+        } catch {
+            statusMessage = googleCalendarStatusMessage(for: error)
+            return false
+        }
+    }
+
+    /// Free/busy for every guest and room plus the calendar owner, keyed by lowercased email.
+    func guestAvailability(for draft: MeetingDraft) async throws -> [String: GuestAvailability] {
+        let service = GoogleCalendarService()
+        let user = try await service.userWithFreeBusyScope(
+            service.restorePreviousSignIn(),
+            presenting: NSApp.oauthPresentationWindow,
+        )
+        var emails = draft.availabilityEmails
+        let ownerEmail = service.ownerEmail(for: user)
+        if ownerEmail.contains("@"), !draft.hasGuest(ownerEmail) {
+            emails.insert(ownerEmail, at: 0)
+        }
+        return try await service.fetchAvailability(
+            emails: emails,
+            during: draft.occupiedInterval(),
+            accessToken: service.accessToken(for: user),
+        )
+    }
+
+    /// Active managed employees across every saved Kakitangan account, deduplicated by email.
+    var allManagedEmployees: [ManagedEmployee] {
+        var seen: Set<String> = []
+        return accounts
+            .flatMap(\.managedEmployees)
+            .filter { seen.insert($0.id).inserted }
     }
 
     private func handleCalendarEventsUpdate(_ events: [GoogleCalendarEvent]) async {
