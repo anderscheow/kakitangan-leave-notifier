@@ -69,7 +69,7 @@ final class NotificationService {
         for (index, leave) in report.leaves.enumerated() {
             try await add(
                 title: "\(leave.name): \(leave.remainingDaysLabel(from: report.today))",
-                body: "\(leave.leaveTypeWithPeriod) • \(DateOnly.display(leave.startDate))–\(DateOnly.display(leave.endDate)) • \(leave.accountEmail)",
+                body: "\(leave.leaveTypeWithPeriod) • \(leave.dateText()) • \(leave.accountEmail)",
                 threadIdentifier: "\(leave.accountEmail)-\(leave.email)",
             )
             if index < report.leaves.count - 1 {

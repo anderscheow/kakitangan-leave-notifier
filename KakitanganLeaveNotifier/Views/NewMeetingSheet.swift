@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 
@@ -20,8 +21,8 @@ struct NewMeetingSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    TextField("Add title", text: $draft.title)
-                        .textFieldStyle(.roundedBorder)
+                    TextField("Title", text: $draft.title, prompt: .leavePrompt("Add title"))
+                        .leaveInputField()
                         .font(.title3)
 
                     MeetingFormSection(title: "When", icon: "clock") {
@@ -35,6 +36,8 @@ struct NewMeetingSheet: View {
                     }
                 }
                 .padding(24)
+                // Guests, rooms, repeat options, and availability results ease in as the draft changes.
+                .leaveAnimation(value: formAnimationKey)
             }
 
             Divider()
@@ -44,7 +47,7 @@ struct NewMeetingSheet: View {
                 .padding(.vertical, 16)
         }
         .frame(width: 540, height: 660)
-        .background(Color.leaveCanvas)
+        .background(LeaveBackdrop())
         .task {
             await model.loadManagedEmployeesIfNeeded()
         }
@@ -59,8 +62,8 @@ struct NewMeetingSheet: View {
     private var scheduleFields: some View {
         Toggle("All day", isOn: $draft.isAllDay)
 
-        DatePicker("Starts", selection: startBinding, displayedComponents: dateComponents)
-        DatePicker("Ends", selection: $draft.endDate, displayedComponents: dateComponents)
+        MeetingDateRow(title: "Starts", selection: startBinding, elements: dateElements)
+        MeetingDateRow(title: "Ends", selection: $draft.endDate, elements: dateElements)
 
         Picker("Repeat", selection: $draft.recurrence.frequency) {
             ForEach(MeetingRecurrenceFrequency.allCases) { frequency in
@@ -81,8 +84,13 @@ struct NewMeetingSheet: View {
                 case .never:
                     EmptyView()
                 case .onDate:
-                    DatePicker("End date", selection: $draft.recurrence.endDate, displayedComponents: .date)
-                        .labelsHidden()
+                    LeaveDateField(
+                        selection: $draft.recurrence.endDate,
+                        elements: .yearMonthDay,
+                        accessibilityLabel: "Repeat end date",
+                    )
+                    .fixedSize()
+                    .leaveInputField()
                 case .afterOccurrences:
                     Stepper(
                         "\(draft.recurrence.occurrenceCount) occurrence\(draft.recurrence.occurrenceCount == 1 ? "" : "s")",
@@ -91,11 +99,12 @@ struct NewMeetingSheet: View {
                     )
                 }
             }
+            .leaveTransition()
         }
     }
 
-    private var dateComponents: DatePickerComponents {
-        draft.isAllDay ? [.date] : [.date, .hourAndMinute]
+    private var dateElements: NSDatePicker.ElementFlags {
+        draft.isAllDay ? .yearMonthDay : [.yearMonthDay, .hourMinute]
     }
 
     /// Moving the start drags the end along so the meeting keeps its length.
@@ -131,6 +140,7 @@ struct NewMeetingSheet: View {
 
         ForEach(draft.guestEmails, id: \.self) { email in
             guestRow(email)
+                .leaveTransition()
         }
 
         availabilityControls
@@ -142,7 +152,7 @@ struct NewMeetingSheet: View {
     private func guestRow(_ email: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "person.crop.circle")
-                .foregroundStyle(Color.leaveTeal)
+                .foregroundStyle(Color.leaveAccent)
             VStack(alignment: .leading, spacing: 1) {
                 Text(guestName(for: email) ?? email)
                     .font(.subheadline)
@@ -158,6 +168,7 @@ struct NewMeetingSheet: View {
             Spacer(minLength: 8)
             if let status = currentAvailability(for: email) {
                 GuestAvailabilityBadge(availability: status)
+                    .transition(.opacity)
             }
             Button {
                 draft.removeGuest(email)
@@ -291,29 +302,29 @@ struct NewMeetingSheet: View {
 
         ForEach(draft.rooms) { room in
             roomRow(room)
+                .leaveTransition()
         }
 
         TextEditor(text: $draft.notes)
             .font(.body)
+            .hidingScrollContentBackground()
             .frame(minHeight: 80)
             .overlay(alignment: .topLeading) {
                 if draft.notes.isEmpty {
+                    // Leading 5 matches NSTextView's line fragment padding.
                     Text("Add description")
                         .foregroundStyle(Color.leaveMuted)
                         .padding(.leading, 5)
                         .allowsHitTesting(false)
                 }
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.leaveTeal.opacity(0.16), lineWidth: 1)
-            }
+            .leaveInputField()
     }
 
     private func roomRow(_ room: MeetingRoom) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "building.2")
-                .foregroundStyle(Color.leaveTeal)
+                .foregroundStyle(Color.leaveAccent)
             Text(room.name)
                 .font(.subheadline)
                 .foregroundStyle(Color.leaveInk)
@@ -321,6 +332,7 @@ struct NewMeetingSheet: View {
             Spacer(minLength: 8)
             if let status = currentAvailability(for: room.email) {
                 GuestAvailabilityBadge(availability: status)
+                    .transition(.opacity)
             }
             Button {
                 draft.removeRoom(room)
@@ -342,6 +354,7 @@ struct NewMeetingSheet: View {
                     .font(.caption)
                     .foregroundStyle(Color.leaveOrange)
                     .fixedSize(horizontal: false, vertical: true)
+                    .leaveTransition(edge: .bottom)
             }
 
             Spacer(minLength: 8)
@@ -368,6 +381,14 @@ struct NewMeetingSheet: View {
             .disabled(model.isCreatingMeeting || draft.validationMessage() != nil)
             .help("Create meeting (⌘↩)")
         }
+        .leaveAnimation(value: createError ?? draft.validationMessage())
+    }
+
+    /// Everything whose change should animate the form, combined so one animation drives it.
+    private var formAnimationKey: [String] {
+        draft.guestEmails
+            + draft.rooms.map(\.email)
+            + ["repeats:\(draft.recurrence.repeats)", "available:\(isAvailabilityCurrent)"]
     }
 
     private func create() {
@@ -383,6 +404,25 @@ struct NewMeetingSheet: View {
             } else {
                 createError = model.statusMessage
             }
+        }
+    }
+}
+
+
+/// Labelled date row matching the layout of a native `DatePicker` with a leading title.
+private struct MeetingDateRow: View {
+    let title: String
+    @Binding var selection: Date
+    let elements: NSDatePicker.ElementFlags
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .foregroundStyle(Color.leaveInk)
+            Spacer(minLength: 8)
+            LeaveDateField(selection: $selection, elements: elements, accessibilityLabel: title)
+                .fixedSize()
+                .leaveInputField()
         }
     }
 }
@@ -404,12 +444,11 @@ private struct MeetingFormSection<Content: View>: View {
             Label(title, systemImage: icon)
                 .font(.headline)
                 .foregroundStyle(Color.leaveInk)
-            VStack(alignment: .leading, spacing: 10) {
-                content
+            SurfaceCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    content
+                }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .liquidGlassSurface(cornerRadius: 14)
         }
     }
 }
@@ -421,10 +460,7 @@ private struct GuestAvailabilityBadge: View {
     var body: some View {
         Text(text)
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .liquidGlassCapsule(tint: color)
+            .statusChip(color)
             .help(helpText)
     }
 
@@ -459,7 +495,7 @@ private struct GuestAvailabilityBadge: View {
     private var color: Color {
         switch availability {
         case .free:
-            return .leaveTeal
+            return .leaveSuccess
         case .busy:
             return .leaveOrange
         case .unknown:

@@ -189,6 +189,15 @@ struct GoogleCalendarEvent: Identifiable, Equatable {
         attendees.first(where: \.isSelf)?.responseStatus ?? .needsAction
     }
 
+    /// Only invited guests have an RSVP to update; Google rejects replies from anyone else.
+    var canRespond: Bool {
+        attendees.contains(where: \.isSelf)
+    }
+
+    var hasEnded: Bool {
+        endDate <= Date()
+    }
+
     var timeRangeText: String {
         if isAllDay {
             return DateOnly.display(startDate)

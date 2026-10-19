@@ -14,13 +14,13 @@ struct GuestAutocompleteField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            TextField("Add guests by name or email", text: $query)
-                .textFieldStyle(.roundedBorder)
+            TextField("Guests", text: $query, prompt: .leavePrompt("Add guests by name or email"))
                 .focused($isFocused)
                 .onSubmit(commit)
                 .onChange(of: query) { newValue in
                     suggestions.searchPeople(newValue)
                 }
+                .leaveInputField()
 
             if let inputError {
                 Text(inputError)
@@ -40,6 +40,7 @@ struct GuestAutocompleteField: View {
                         }
                     }
                 }
+                .leaveTransition()
             }
 
             if isFocused, let error = suggestions.remoteSearchError {
@@ -49,6 +50,7 @@ struct GuestAutocompleteField: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .leaveAnimation(LeaveMotion.quick, value: isFocused && !matches.isEmpty)
     }
 
     private var matches: [GuestSuggestion] {
@@ -96,12 +98,12 @@ struct LocationAutocompleteField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            TextField("Add location or room", text: $draft.location)
-                .textFieldStyle(.roundedBorder)
+            TextField("Location", text: $draft.location, prompt: .leavePrompt("Add location or room"))
                 .focused($isFocused)
                 .onChange(of: draft.location) { newValue in
                     places.update(query: newValue == acceptedLocation ? "" : newValue)
                 }
+                .leaveInputField()
 
             if isFocused, draft.location != acceptedLocation, hasSuggestions {
                 SuggestionList {
@@ -133,8 +135,10 @@ struct LocationAutocompleteField: View {
                         }
                     }
                 }
+                .leaveTransition()
             }
         }
+        .leaveAnimation(LeaveMotion.quick, value: isFocused && draft.location != acceptedLocation && hasSuggestions)
     }
 
     private var roomMatches: [MeetingRoom] {
@@ -165,7 +169,12 @@ private struct SuggestionList<Content: View>: View {
             content
         }
         .padding(.vertical, 4)
-        .liquidGlassSurface(cornerRadius: 10)
+        .background(Color.leaveSurface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.leaveBorder, lineWidth: 1)
+        }
+        .shadow(color: Color.leaveShadow, radius: 8, y: 3)
     }
 }
 
@@ -193,7 +202,7 @@ private struct SuggestionRow: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .foregroundStyle(Color.leaveTeal)
+                    .foregroundStyle(Color.leaveAccent)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
@@ -211,6 +220,7 @@ private struct SuggestionRow: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
+            .leaveHoverHighlight(cornerRadius: 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

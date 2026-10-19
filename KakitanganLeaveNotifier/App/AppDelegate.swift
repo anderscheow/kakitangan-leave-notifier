@@ -230,12 +230,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let model = AppModel()
         let contentView = ContentView()
             .environmentObject(model)
-            .frame(minWidth: 680, minHeight: 620)
+            .companionWindowFrame()
         let window = NSWindow(contentViewController: NSHostingController(rootView: contentView))
         window.title = "Kakitangan Companion"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 760, height: 680))
-        window.minSize = NSSize(width: 680, height: 620)
+        window.setContentSize(CompanionWindowLayout.preferredContentSize(on: NSScreen.main))
+        window.contentMinSize = CompanionWindowLayout.minimumSize
         window.isReleasedWhenClosed = false
         window.center()
 

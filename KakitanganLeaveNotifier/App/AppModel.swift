@@ -66,8 +66,19 @@ enum DashboardSection: String, CaseIterable, Identifiable {
 
 
 /// Navigation requested from outside the window (status-bar menu, main menu).
+enum SettingsSection: String, CaseIterable, Identifiable {
+    case account = "Account"
+    case calendar = "Calendar"
+    case notifications = "Notifications"
+    case general = "General"
+
+    var id: String { rawValue }
+}
+
+
 enum DashboardRequest: Equatable {
     case section(DashboardSection)
+    case settings(SettingsSection)
     case newMeeting
 
     static let userInfoKey = "dashboardRequest"
@@ -111,7 +122,10 @@ final class AppModel: ObservableObject {
     @Published var lastCancelledMeetingCount: Int = 0
     @Published var isConnectingGoogleCalendar: Bool = false
     @Published var isRefreshingCalendar: Bool = false
+    /// Events with an RSVP update in flight, so their reply buttons can show progress and avoid double sends.
+    @Published private(set) var respondingEventIDs: Set<String> = []
     @Published var dashboardSection: DashboardSection = .overview
+    @Published var settingsSection: SettingsSection = .account
     @Published var isPresentingNewMeeting: Bool = false
     @Published private(set) var isCreatingMeeting: Bool = false
     @Published var statusMessage: String = ""
@@ -329,7 +343,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func beginEditing() {
+    /// Opens settings on `section`, so links from the dashboard land on the relevant tab.
+    func beginEditing(section: SettingsSection = .account) {
+        settingsSection = section
         screen = .editing
         statusMessage = ""
     }
@@ -759,6 +775,11 @@ final class AppModel: ObservableObject {
     }
 
     func respondToMeeting(_ event: GoogleCalendarEvent, with responseStatus: CalendarResponseStatus) async {
+        guard !respondingEventIDs.contains(event.id) else {
+            return
+        }
+        respondingEventIDs.insert(event.id)
+        defer { respondingEventIDs.remove(event.id) }
         do {
             let service = GoogleCalendarService()
             let user = try await service.restorePreviousSignIn()
@@ -782,6 +803,8 @@ final class AppModel: ObservableObject {
         switch request {
         case let .section(section):
             dashboardSection = section
+        case let .settings(section):
+            beginEditing(section: section)
         case .newMeeting:
             beginNewMeeting()
         }

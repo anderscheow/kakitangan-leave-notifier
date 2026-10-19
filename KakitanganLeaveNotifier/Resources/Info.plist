@@ -29,6 +29,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>12.0</string>
+	<key>NSAccentColorName</key>
+	<string>AccentColor</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Kakitangan Companion suggests guest email addresses from your contacts when you create a meeting.</string>
 	<key>NSHumanReadableCopyright</key>

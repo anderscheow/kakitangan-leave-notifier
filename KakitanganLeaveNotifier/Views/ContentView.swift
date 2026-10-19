@@ -4,16 +4,15 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
-            Color.leaveCanvas
-                .ignoresSafeArea()
+            LeaveBackdrop()
 
             switch model.screen {
             case .setup, .editing:
                 SettingsView(isEditing: model.isEditing)
+                    .transition(.opacity)
             case .dashboard:
                 GeometryReader { proxy in
                     ScrollView {
@@ -23,12 +22,11 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, alignment: .top)
                     }
                 }
+                .transition(.opacity)
             }
         }
-        .animation(
-            reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.86),
-            value: model.screen,
-        )
+        // Screen changes crossfade; a slide across the whole window would be more motion than it needs.
+        .leaveAnimation(LeaveMotion.screen, value: model.screen)
         .task {
             await model.refreshNotificationPermission()
         }
@@ -39,6 +37,9 @@ struct ContentView: View {
             NewMeetingSheet(suggestions: model.meetingSuggestions)
                 .environmentObject(model)
         }
+        // Last in the chain so the sheet above inherits it too. Switches, segmented pickers,
+        // steppers, glass buttons, and links follow the brand accent instead of macOS system blue.
+        .tint(.leaveAccent)
     }
 
     /// Scoped to this view's lifetime, so a closed window never picks up menu shortcuts.
@@ -57,8 +58,6 @@ private struct SettingsView: View {
 
     let isEditing: Bool
 
-    @State private var selectedSection: SettingsSection = .account
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -66,7 +65,7 @@ private struct SettingsView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 18)
 
-            SectionTabView(selection: $selectedSection) { section in
+            SectionTabView(selection: $model.settingsSection) { section in
                 switch section {
                 case .account:
                     settingsTab {
@@ -126,7 +125,9 @@ private struct SettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 content()
             }
-            .padding(20)
+            // Combined with the outer inset this lines cards up with the header, and leaves room for card shadows.
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
@@ -136,6 +137,7 @@ private struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             if !model.statusMessage.isEmpty {
                 StatusMessage(message: model.statusMessage)
+                    .leaveTransition(edge: .bottom)
             }
 
             HStack(spacing: 12) {
@@ -151,7 +153,6 @@ private struct SettingsView: View {
                     model.saveSetup()
                 }
                 .buttonStyle(.liquidGlassProminent)
-                .tint(.leaveTeal)
                 .controlSize(.large)
 
                 Spacer(minLength: 0)
@@ -161,23 +162,15 @@ private struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(Color.leaveMuted)
         }
+        .leaveAnimation(value: model.statusMessage)
     }
 }
 
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
-    case account = "Account"
-    case calendar = "Calendar"
-    case notifications = "Notifications"
-    case general = "General"
-
-    var id: String { rawValue }
-}
-
-
-/// Tab strip plus content box, built from a SwiftUI segmented picker instead of
+/// Tab strip plus content, built from a SwiftUI segmented picker instead of
 /// `TabView`. On macOS `TabView` is backed by `NSTabView`, whose tab labels can be
 /// measured before the window has a real width and stay collapsed until clicked.
+/// The content has no wrapping box, so cards sit directly on the window backdrop.
 private struct SectionTabView<Section, Content>: View
 where Section: RawRepresentable & CaseIterable & Identifiable & Hashable,
       Section.RawValue == String,
@@ -187,7 +180,7 @@ where Section: RawRepresentable & CaseIterable & Identifiable & Hashable,
     @ViewBuilder let content: (Section) -> Content
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Picker("Section", selection: $selection) {
                 ForEach(Section.allCases) { section in
                     Text(section.rawValue).tag(section)
@@ -195,19 +188,16 @@ where Section: RawRepresentable & CaseIterable & Identifiable & Hashable,
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .controlSize(.large)
             .fixedSize()
 
+            // A fresh identity per tab gives a short crossfade instead of a hard cut.
             content(selection)
+                .id(selection)
+                .transition(.opacity)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(
-                    Color.leaveInk.opacity(0.03),
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous),
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.leaveTeal.opacity(0.12), lineWidth: 1)
-                }
         }
+        .leaveAnimation(LeaveMotion.quick, value: selection)
     }
 }
 
@@ -229,20 +219,19 @@ private struct DashboardView: View {
                 switch section {
                 case .overview:
                     DashboardOverview(isCompact: isCompact)
-                        .padding(20)
                 case .meetings:
                     MeetingCalendarCard()
-                        .padding(20)
                 case .leave:
                     LeaveListCard()
-                        .padding(20)
                 }
             }
 
             if !model.statusMessage.isEmpty {
                 StatusMessage(message: model.statusMessage)
+                    .leaveTransition(edge: .bottom)
             }
         }
+        .leaveAnimation(value: model.statusMessage)
         .task {
             await model.refreshWatchList()
         }
@@ -288,7 +277,7 @@ private struct DashboardHeader: View {
     }
 
     private var actionBar: some View {
-        HStack(spacing: 10) {
+        GlassControlGroup(spacing: 10) {
             Button {
                 Task {
                     await model.refreshWatchList()
@@ -322,6 +311,21 @@ private struct DashboardHeader: View {
 }
 
 
+extension DashboardRequest {
+    /// Name of the place a request opens, for tooltips and VoiceOver hints.
+    fileprivate var title: String {
+        switch self {
+        case let .section(section):
+            return "\(section.rawValue) tab"
+        case let .settings(section):
+            return "\(section.rawValue) settings"
+        case .newMeeting:
+            return "New meeting"
+        }
+    }
+}
+
+
 private struct DashboardOverview: View {
     @EnvironmentObject private var model: AppModel
 
@@ -335,22 +339,51 @@ private struct DashboardOverview: View {
                 columns: [GridItem(.adaptive(minimum: isCompact ? 170 : 230), spacing: 16)],
                 spacing: 16,
             ) {
-                MetricCard(title: "Accounts", value: "\(model.configuredAccountCount)", icon: "person.crop.circle")
-                MetricCard(title: "Watching", value: "\(model.monitoredEmployeeCount) people", icon: "person.2")
-                MetricCard(title: "Leave horizon", value: "\(model.daysAhead) days", icon: "calendar")
+                MetricCard(
+                    title: "Accounts",
+                    value: "\(model.configuredAccountCount)",
+                    icon: "person.crop.circle",
+                    destination: .settings(.account),
+                )
+                MetricCard(
+                    title: "Watching",
+                    value: "\(model.monitoredEmployeeCount) people",
+                    icon: "person.2",
+                    destination: .settings(.account),
+                )
+                MetricCard(
+                    title: "Leave horizon",
+                    value: "\(model.daysAhead) days",
+                    icon: "calendar",
+                    destination: .section(.leave),
+                )
                 MetricCard(
                     title: "Meetings",
                     value: model.isGoogleCalendarConnected ? "\(model.upcomingMeetingCount) upcoming" : "Not connected",
                     icon: "video",
+                    tint: model.isGoogleCalendarConnected ? .leaveSuccess : .leaveOrange,
+                    destination: meetingsDestination,
                 )
                 MetricCard(
                     title: "Cancelled",
                     value: model.cancelledMeetingCount == 0 ? "None" : "\(model.cancelledMeetingCount) meetings",
                     icon: "xmark.circle",
+                    tint: model.cancelledMeetingCount == 0 ? .leaveMuted : .leaveOrange,
+                    destination: meetingsDestination,
                 )
-                MetricCard(title: "Reminders", value: model.meetingReminderSummary, icon: "bell.badge")
+                MetricCard(
+                    title: "Reminders",
+                    value: model.meetingReminderSummary,
+                    icon: "bell.badge",
+                    destination: .settings(.calendar),
+                )
             }
         }
+    }
+
+    /// Meeting cards open the Meetings tab, or Calendar settings when there is nothing to show yet.
+    private var meetingsDestination: DashboardRequest {
+        model.isGoogleCalendarConnected ? .section(.meetings) : .settings(.calendar)
     }
 }
 
@@ -358,34 +391,63 @@ private struct DashboardOverview: View {
 private struct ScheduleStatusCard: View {
     @EnvironmentObject private var model: AppModel
 
+    private let destination = DashboardRequest.settings(.notifications)
+
     var body: some View {
-        SurfaceCard {
-            HStack(alignment: .center, spacing: 16) {
-                Image(systemName: scheduleIcon)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(scheduleColor)
-                    .frame(width: 46, height: 46)
-                    .liquidGlassSurface(cornerRadius: 14, tint: scheduleColor)
+        // The card opens Notifications settings, while the schedule button keeps its own action. The
+        // button is overlaid rather than nested in the card's button, and a hidden copy holds its space.
+        Button {
+            model.handle(destination)
+        } label: {
+            SurfaceCard {
+                HStack(alignment: .center, spacing: 16) {
+                    IconTile(systemName: scheduleIcon, color: scheduleColor, size: 46)
+                        .leaveSymbolBounce(value: scheduleIcon)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(scheduleTitle)
-                        .font(.headline)
-                        .foregroundStyle(Color.leaveInk)
-                    Text(scheduleDescription)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.leaveMuted)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(scheduleTitle)
+                            .font(.headline)
+                            .foregroundStyle(Color.leaveInk)
+                        Text(scheduleDescription)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.leaveMuted)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    CardChevron()
+
+                    scheduleButton
+                        .hidden()
                 }
-
-                Spacer(minLength: 12)
-
-                Button(scheduleButtonTitle) {
-                    model.installWeekdaySchedule()
-                }
-                .buttonStyle(.liquidGlassProminent)
-                .tint(.leaveTeal)
-                .disabled(model.isInstallingSchedule || !model.hasAutomatedCheck)
             }
         }
+        .buttonStyle(.leaveCard)
+        .help("Open \(destination.title)")
+        .accessibilityLabel("\(scheduleTitle). \(scheduleDescription)")
+        .accessibilityHint("Opens \(destination.title)")
+        .overlay(alignment: .trailing) {
+            scheduleButton
+                .padding(.trailing, 20)
+        }
+        // The status color and copy change together when the schedule is enabled or goes stale.
+        .leaveAnimation(value: scheduleIcon)
+    }
+
+    private var scheduleButton: some View {
+        Button {
+            model.installWeekdaySchedule()
+        } label: {
+            HStack(spacing: 6) {
+                if model.isInstallingSchedule {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(scheduleButtonTitle)
+            }
+        }
+        .buttonStyle(.liquidGlassProminent)
+        .disabled(model.isInstallingSchedule || !model.hasAutomatedCheck)
     }
 
     private var scheduleDescription: String {
@@ -413,7 +475,7 @@ private struct ScheduleStatusCard: View {
     }
 
     private var scheduleColor: Color {
-        model.isWeekdayScheduleInstalled && !model.needsScheduleRefresh ? .leaveTeal : .leaveOrange
+        model.isWeekdayScheduleInstalled && !model.needsScheduleRefresh ? .leaveSuccess : .leaveOrange
     }
 
     private var scheduleTitle: String {
@@ -474,6 +536,8 @@ private struct MeetingCalendarCard: View {
                 MeetingCancelledBanner(cancelledCount: model.cancelledMeetingCount)
                 MeetingCalendarContent(groups: groupedEvents)
             }
+            // Meetings added, removed, or cancelled by a refresh ease in and out rather than popping.
+            .leaveAnimation(value: model.calendarEvents)
         }
     }
 
@@ -526,30 +590,36 @@ private struct MeetingCalendarHeader: View {
                     .font(.headline)
                     .foregroundStyle(Color.leaveInk)
                 Spacer(minLength: 8)
-                if model.isRefreshingCalendar {
-                    ProgressView()
-                        .controlSize(.small)
+                GlassControlGroup(spacing: 8) {
+                    // Creating is the positive action here, so it carries the accent; refresh stays neutral.
+                    Button {
+                        model.beginNewMeeting()
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .buttonStyle(.liquidGlassTinted(.leaveAccent))
+                    .controlSize(.small)
+                    .disabled(!model.isGoogleCalendarConnected)
+                    .help(model.isGoogleCalendarConnected ? "New meeting (⇧⌘N)" : "Connect Google Calendar in Settings to create meetings")
+                    .accessibilityLabel("Create a Google Calendar meeting")
+
+                    // The spinner replaces the icon in place, so the header doesn't shift while refreshing.
+                    Button {
+                        Task { await model.refreshCalendarEvents() }
+                    } label: {
+                        if model.isRefreshingCalendar {
+                            ProgressView()
+                                .controlSize(.mini)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .buttonStyle(.liquidGlass)
+                    .controlSize(.small)
+                    .disabled(!model.isGoogleCalendarConnected || model.isRefreshingCalendar)
+                    .help(refreshHelp)
+                    .accessibilityLabel("Refresh Google Calendar meetings")
                 }
-                Button {
-                    model.beginNewMeeting()
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.liquidGlass)
-                .controlSize(.small)
-                .disabled(!model.isGoogleCalendarConnected)
-                .help("New meeting (⇧⌘N)")
-                .accessibilityLabel("Create a Google Calendar meeting")
-                Button {
-                    Task { await model.refreshCalendarEvents() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.liquidGlass)
-                .controlSize(.small)
-                .disabled(!model.isGoogleCalendarConnected || model.isRefreshingCalendar)
-                .help("Refresh meetings")
-                .accessibilityLabel("Refresh Google Calendar meetings")
             }
 
             Text(calendarSubtitle)
@@ -557,6 +627,13 @@ private struct MeetingCalendarHeader: View {
                 .foregroundStyle(Color.leaveMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var refreshHelp: String {
+        if !model.isGoogleCalendarConnected {
+            return "Connect Google Calendar in Settings to refresh meetings"
+        }
+        return model.isRefreshingCalendar ? "Refreshing meetings…" : "Refresh meetings"
     }
 
     private var calendarSubtitle: String {
@@ -578,10 +655,8 @@ private struct MeetingCancelledBanner: View {
             Label("\(cancelledCount) cancelled meeting\(cancelledCount == 1 ? "" : "s") found in this window", systemImage: "exclamationmark.triangle.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.leaveOrange)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .liquidGlassSurface(cornerRadius: 10, tint: .leaveOrange)
+                .callout(.leaveOrange)
+                .leaveTransition()
         }
     }
 }
@@ -614,7 +689,7 @@ private struct MeetingCalendarContent: View {
                 icon: "checkmark.circle",
                 title: "No upcoming meetings",
                 detail: "Your primary calendar is clear for this look-ahead window.",
-                color: .leaveTeal,
+                color: .leaveSuccess,
             )
         } else {
             VStack(alignment: .leading, spacing: 14) {
@@ -660,6 +735,7 @@ private struct MeetingGroupSection: View {
             VStack(spacing: 8) {
                 ForEach(group.events) { event in
                     MeetingRow(event: event)
+                        .leaveTransition()
                 }
             }
         }
@@ -673,11 +749,7 @@ private struct MeetingRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(statusColor)
-                    .frame(width: 26, height: 26)
-                    .liquidGlassSurface(cornerRadius: 8, tint: statusColor)
+                IconTile(systemName: icon, color: statusColor, size: 30)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(event.title)
@@ -702,26 +774,29 @@ private struct MeetingRow: View {
                 Spacer(minLength: 8)
 
                 if let meetingLink = event.meetingLink, !event.isCancelled {
+                    // Joining is the row's key action, so it carries the accent; other row buttons stay neutral.
                     Link(destination: meetingLink) {
                         Image(systemName: "arrow.up.right")
                     }
-                    .buttonStyle(.liquidGlass)
+                    .buttonStyle(.liquidGlassTinted(.leaveAccent))
                     .controlSize(.small)
-                    .accessibilityLabel("Open \(event.title)")
+                    .disabled(event.hasEnded)
+                    .help(event.hasEnded ? "This meeting has ended" : "Join meeting")
+                    .accessibilityLabel("Join \(event.title)")
                 }
             }
 
             if event.isCancelled {
                 Text("Cancelled")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.leaveOrange)
+                    .statusChip(.leaveOrange)
             } else {
                 MeetingResponseControls(event: event)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .liquidGlassSurface(cornerRadius: 12, tint: statusColor, interactive: true)
+        .leaveRow(accent: statusColor)
         // `.contain` keeps the attendee, join, and RSVP buttons individually reachable.
         .accessibilityElement(children: .contain)
     }
@@ -734,7 +809,7 @@ private struct MeetingRow: View {
     }
 
     private var statusColor: Color {
-        event.isCancelled ? .leaveOrange : .leaveTeal
+        event.isCancelled ? .leaveOrange : .leaveAccent
     }
 
 }
@@ -747,25 +822,80 @@ private struct MeetingResponseControls: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Label(event.selfResponseStatus.title, systemImage: event.selfResponseStatus.icon)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Color.leaveMuted)
+            replyStatus
 
             Spacer(minLength: 8)
 
-            ForEach([CalendarResponseStatus.accepted, .tentative, .declined]) { response in
-                Button {
-                    Task { await model.respondToMeeting(event, with: response) }
-                } label: {
-                    Image(systemName: response.icon)
+            GlassControlGroup(spacing: 6) {
+                ForEach([CalendarResponseStatus.accepted, .tentative, .declined]) { response in
+                    responseButton(response)
                 }
-                .buttonStyle(.liquidGlass)
-                .controlSize(.small)
-                .disabled(event.selfResponseStatus == response)
-                .help(response.title)
-                .accessibilityLabel("\(response.title) \(event.title)")
             }
+            .disabled(!canReply)
         }
+        .leaveAnimation(LeaveMotion.quick, value: event.selfResponseStatus)
+        .leaveAnimation(LeaveMotion.quick, value: isSending)
+    }
+
+    private var isSending: Bool {
+        model.respondingEventIDs.contains(event.id)
+    }
+
+    /// Replies are blocked while one is being sent and for meetings you weren't invited to.
+    private var canReply: Bool {
+        event.canRespond && !isSending
+    }
+
+    @ViewBuilder
+    private var replyStatus: some View {
+        if isSending {
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.mini)
+                Text("Sending reply…")
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(Color.leaveMuted)
+        } else if event.canRespond {
+            Label(event.selfResponseStatus.title, systemImage: event.selfResponseStatus.icon)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(event.selfResponseStatus.tint)
+        } else {
+            Label("No reply needed", systemImage: "person.crop.circle.badge.checkmark")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.leaveMuted)
+        }
+    }
+
+    /// Every answer keeps its own color (with a distinct symbol, so color is never the only cue).
+    /// The current answer is selected, not disabled: a disabled reply looked unavailable.
+    private func responseButton(_ response: CalendarResponseStatus) -> some View {
+        let isCurrent = event.canRespond && event.selfResponseStatus == response
+        return Button {
+            guard !isCurrent else {
+                return
+            }
+            Task { await model.respondToMeeting(event, with: response) }
+        } label: {
+            Image(systemName: response.icon)
+                .symbolVariant(isCurrent ? .fill : .none)
+                .leaveSymbolBounce(value: isCurrent)
+        }
+        .buttonStyle(isCurrent ? .liquidGlassSelected(response.tint) : .liquidGlassTinted(response.tint))
+        .controlSize(.small)
+        .help(responseHelp(for: response, isCurrent: isCurrent))
+        .accessibilityLabel("\(response.title) \(event.title)")
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+    }
+
+    private func responseHelp(for response: CalendarResponseStatus, isCurrent: Bool) -> String {
+        if !event.canRespond {
+            return "Only invited guests can reply to this meeting"
+        }
+        if isSending {
+            return "Sending your reply…"
+        }
+        return isCurrent ? "Your reply: \(response.title)" : "Reply \(response.title)"
     }
 }
 
@@ -801,8 +931,10 @@ private struct LeaveListCard: View {
                 VStack(spacing: 8) {
                     ForEach(report.leaves) { leave in
                         leaveRow(leave, today: report.today)
+                            .leaveTransition()
                     }
                 }
+                .leaveAnimation(value: report.leaves.map(\.id))
             }
         } else if model.isRefreshing {
             HStack(spacing: 8) {
@@ -827,7 +959,7 @@ private struct LeaveListCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Label("No upcoming leave", systemImage: "checkmark.circle")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.leaveTeal)
+                .foregroundStyle(Color.leaveSuccess)
             Text("No monitored employee starts approved leave in the next \(model.daysAhead) days.")
                 .font(.caption)
                 .foregroundStyle(Color.leaveMuted)
@@ -843,7 +975,7 @@ private struct LeaveListCard: View {
                 Text(leave.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.leaveInk)
-                Text("\(leave.leaveTypeWithPeriod) · \(dateText(leave)) · \(leave.accountEmail)")
+                Text("\(leave.leaveTypeWithPeriod) · \(leave.dateText()) · \(leave.accountEmail)")
                     .font(.caption)
                     .foregroundStyle(Color.leaveMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -855,39 +987,26 @@ private struct LeaveListCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+        .leaveRow(accent: urgencyColor(leave, today: today))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(leave.name), \(leave.leaveTypeWithPeriod), \(dateText(leave)), \(leave.accountEmail), \(leave.remainingDaysLabel(from: today))")
+        .accessibilityLabel("\(leave.name), \(leave.leaveTypeWithPeriod), \(leave.dateText()), \(leave.accountEmail), \(leave.remainingDaysLabel(from: today))")
     }
 
     private func daysLeftBadge(_ leave: LeaveSummary, today: Date) -> some View {
+        Text(leave.remainingDaysLabel(from: today))
+            .font(.caption.weight(.semibold))
+            .statusChip(urgencyColor(leave, today: today))
+            .fixedSize()
+    }
+
+    /// Orange once the leave has started, the accent color while it is still upcoming.
+    private func urgencyColor(_ leave: LeaveSummary, today: Date) -> Color {
         let daysUntilStart = Calendar.current.dateComponents(
             [.day],
             from: today,
             to: Calendar.current.startOfDay(for: leave.startDate),
         ).day ?? 0
-        let color: Color = daysUntilStart <= 0 ? .leaveOrange : .leaveTeal
-
-        return Text(leave.remainingDaysLabel(from: today))
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .liquidGlassCapsule(tint: color)
-            .fixedSize()
-    }
-
-    private func dateText(_ leave: LeaveSummary) -> String {
-        let calendar = Calendar.current
-        if calendar.isDate(leave.startDate, inSameDayAs: leave.endDate) {
-            return DateOnly.display(leave.startDate)
-        }
-        let days = (calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: leave.startDate),
-            to: calendar.startOfDay(for: leave.endDate),
-        ).day ?? 0) + 1
-        return "\(DateOnly.display(leave.startDate)) – \(DateOnly.display(leave.endDate)) (\(days) days)"
+        return daysUntilStart <= 0 ? .leaveOrange : .leaveAccent
     }
 }
 
@@ -917,7 +1036,6 @@ private struct OnDemandChecksCard: View {
                         Label(model.isChecking ? "Checking…" : "Check now", systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.liquidGlassProminent)
-                    .tint(.leaveTeal)
                     .disabled(model.isChecking)
 
                     Button {
@@ -938,6 +1056,7 @@ private struct OnDemandChecksCard: View {
 
 private struct AccountCard: View {
     @EnvironmentObject private var model: AppModel
+    @State private var isConfirmingRemoval = false
 
     var body: some View {
         SurfaceCard {
@@ -949,7 +1068,7 @@ private struct AccountCard: View {
                     Spacer()
                     Text("\(model.configuredAccountCount)")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.leaveTeal)
+                        .statusChip(.leaveAccent)
                 }
 
                 Picker("Account", selection: Binding(
@@ -972,11 +1091,11 @@ private struct AccountCard: View {
                     Text("Login email")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.leaveInk)
-                    TextField("name@g2g.com", text: Binding(
+                    TextField("Login email", text: Binding(
                         get: { model.selectedAccountEmail },
                         set: { model.updateSelectedAccountEmail($0) },
-                    ))
-                        .textFieldStyle(.roundedBorder)
+                    ), prompt: .leavePrompt("name@g2g.com"))
+                        .leaveInputField()
                         .accessibilityLabel("Kakitangan login email")
                 }
 
@@ -984,11 +1103,11 @@ private struct AccountCard: View {
                     Text("Password")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.leaveInk)
-                    SecureField("Kakitangan password", text: Binding(
+                    SecureField("Password", text: Binding(
                         get: { model.selectedAccount?.password ?? "" },
                         set: { model.updateSelectedPassword($0) },
-                    ))
-                        .textFieldStyle(.roundedBorder)
+                    ), prompt: .leavePrompt("Kakitangan password"))
+                        .leaveInputField()
                         .accessibilityLabel("Kakitangan password")
                     Text("Leave the password blank to keep the one already saved in Keychain.")
                         .font(.caption)
@@ -1004,15 +1123,33 @@ private struct AccountCard: View {
                     .buttonStyle(.liquidGlass)
 
                     Button(role: .destructive) {
-                        model.removeSelectedAccount()
+                        isConfirmingRemoval = true
                     } label: {
                         Label("Remove account", systemImage: "trash")
                     }
                     .buttonStyle(.liquidGlass)
                     .disabled(model.accounts.count <= 1)
+                    .confirmationDialog(
+                        "Remove \(removalAccountName)?",
+                        isPresented: $isConfirmingRemoval,
+                    ) {
+                        Button("Remove account", role: .destructive) {
+                            model.removeSelectedAccount()
+                        }
+                    } message: {
+                        Text("This account and its monitored people stop being checked once you save.")
+                    }
                 }
             }
         }
+    }
+}
+
+
+extension AccountCard {
+    fileprivate var removalAccountName: String {
+        let email = model.selectedAccountEmail
+        return email.isEmpty ? "this account" : email
     }
 }
 
@@ -1063,12 +1200,12 @@ private struct MonitoredEmailsCard: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(Color.leaveMuted)
-                TextField("Search name or email", text: $searchText)
+                TextField("Search", text: $searchText, prompt: .leavePrompt("Search name or email"))
                     .textFieldStyle(.plain)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .liquidGlassSurface(cornerRadius: 10, tint: .leaveTeal, interactive: true)
+            .leaveRow()
 
             Button {
                 Task { await model.loadManagedEmployees() }
@@ -1111,7 +1248,8 @@ private struct MonitoredEmailsCard: View {
                                     .foregroundStyle(Color.leaveMuted)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.vertical, 4)
-                                    .liquidGlassSurface(cornerRadius: 8)
+                                    // Opaque so rows scrolling under the pinned header stay hidden.
+                                    .background(Color.leaveSurface)
                             }
                         }
                     }
@@ -1129,7 +1267,8 @@ private struct MonitoredEmailsCard: View {
             HStack(spacing: 12) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
-                    .foregroundStyle(selected ? Color.leaveTeal : Color.leaveMuted)
+                    .foregroundStyle(selected ? Color.leaveAccent : Color.leaveMuted)
+                    .leaveSymbolBounce(value: selected)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(employee.displayName)
                         .foregroundStyle(Color.leaveInk)
@@ -1141,7 +1280,9 @@ private struct MonitoredEmailsCard: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .liquidGlassSurface(cornerRadius: 10, tint: selected ? .leaveTeal : nil, interactive: true)
+            .leaveSelectableRow(isSelected: selected)
+            .leaveHoverHighlight()
+            .leaveAnimation(LeaveMotion.quick, value: selected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1159,8 +1300,8 @@ private struct MonitoredEmailsCard: View {
                 .foregroundStyle(Color.leaveMuted)
 
             HStack(spacing: 8) {
-                TextField("name@g2g.com", text: $newEmail)
-                    .textFieldStyle(.roundedBorder)
+                TextField("Email", text: $newEmail, prompt: .leavePrompt("name@g2g.com"))
+                    .leaveInputField()
                     .onSubmit(addManualEmail)
                     .accessibilityLabel("Add employee email manually")
                 Button("Add", action: addManualEmail)
@@ -1179,7 +1320,7 @@ private struct MonitoredEmailsCard: View {
                 Spacer()
                 Text("\(model.selectedAccountMonitoredEmployeeCount)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.leaveTeal)
+                    .statusChip(.leaveAccent)
                     .accessibilityLabel("\(model.selectedAccountMonitoredEmployeeCount) selected users")
             }
 
@@ -1194,12 +1335,15 @@ private struct MonitoredEmailsCard: View {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(selectedManagedEmployees) { employee in
                             selectedManagedEmployeeRow(employee)
+                                .leaveTransition()
                         }
 
                         ForEach(model.customMonitoredEmails, id: \.self) { email in
                             selectedEmailRow(email)
+                                .leaveTransition()
                         }
                     }
+                    .leaveAnimation(value: selectedManagedEmployees.map(\.id) + model.customMonitoredEmails)
                 }
                 .frame(maxHeight: 220)
             }
@@ -1215,7 +1359,7 @@ private struct MonitoredEmailsCard: View {
     private func selectedManagedEmployeeRow(_ employee: ManagedEmployee) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(Color.leaveTeal)
+                .foregroundStyle(Color.leaveAccent)
                 .frame(width: 20)
                 .accessibilityHidden(true)
 
@@ -1229,7 +1373,8 @@ private struct MonitoredEmailsCard: View {
 
             Spacer(minLength: 8)
 
-            Button(role: .destructive) {
+            // Deselecting is reversible, so it stays neutral; red is kept for actions that lose data.
+            Button {
                 model.setMonitored(employee.email, false)
             } label: {
                 Image(systemName: "xmark")
@@ -1239,13 +1384,13 @@ private struct MonitoredEmailsCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+        .leaveRow()
     }
 
     private func selectedEmailRow(_ email: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(Color.leaveTeal)
+                .foregroundStyle(Color.leaveAccent)
                 .frame(width: 20)
                 .accessibilityHidden(true)
 
@@ -1259,7 +1404,7 @@ private struct MonitoredEmailsCard: View {
 
             Spacer(minLength: 8)
 
-            Button(role: .destructive) {
+            Button {
                 model.setMonitored(email, false)
             } label: {
                 Image(systemName: "xmark")
@@ -1269,7 +1414,7 @@ private struct MonitoredEmailsCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+        .leaveRow()
     }
 
     private func errorState(_ message: String) -> some View {
@@ -1288,9 +1433,7 @@ private struct MonitoredEmailsCard: View {
                 .controlSize(.small)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .liquidGlassSurface(cornerRadius: 10, tint: .leaveTeal, interactive: true)
+        .callout(.leaveOrange)
     }
 
     private func emptyState(_ message: String) -> some View {
@@ -1315,6 +1458,7 @@ private struct MonitoredEmailsCard: View {
 private struct GoogleCalendarCard: View {
     @EnvironmentObject private var model: AppModel
     @State private var newReminderMinutes = 15
+    @State private var isConfirmingDisconnect = false
 
     var body: some View {
         SurfaceCard {
@@ -1331,7 +1475,7 @@ private struct GoogleCalendarCard: View {
 
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: model.googleCalendar.isConfigured ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(model.googleCalendar.isConfigured ? Color.leaveTeal : Color.leaveOrange)
+                        .foregroundStyle(model.googleCalendar.isConfigured ? Color.leaveSuccess : Color.leaveOrange)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(model.googleCalendar.isConfigured ? "Firebase and Google Sign-In are configured" : "Firebase needs configuration")
                             .font(.subheadline.weight(.medium))
@@ -1343,8 +1487,7 @@ private struct GoogleCalendarCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(12)
-                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+                .callout(model.googleCalendar.isConfigured ? .leaveSuccess : .leaveOrange)
 
                 Stepper(
                     "Meeting look ahead: \(model.googleCalendar.meetingLookAheadDays) days",
@@ -1367,6 +1510,8 @@ private struct GoogleCalendarCard: View {
                 )
                 .accessibilityLabel("Google Calendar live refresh interval")
 
+                Divider()
+
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Label("Meeting reminders", systemImage: "bell.badge")
@@ -1375,7 +1520,7 @@ private struct GoogleCalendarCard: View {
                         Spacer()
                         Text("\(model.googleCalendar.reminderLeadTimes.count)")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.leaveTeal)
+                            .statusChip(.leaveAccent)
                     }
 
                     if model.googleCalendar.reminderLeadTimes.isEmpty {
@@ -1387,7 +1532,7 @@ private struct GoogleCalendarCard: View {
                             ForEach(model.googleCalendar.reminderLeadTimes.sorted()) { leadTime in
                                 HStack(spacing: 10) {
                                     Image(systemName: "bell")
-                                        .foregroundStyle(Color.leaveTeal)
+                                        .foregroundStyle(Color.leaveAccent)
                                         .frame(width: 20)
                                     Text(leadTime.label)
                                         .font(.subheadline)
@@ -1404,9 +1549,11 @@ private struct GoogleCalendarCard: View {
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+                                .leaveRow()
+                                .leaveTransition()
                             }
                         }
+                        .leaveAnimation(value: model.googleCalendar.reminderLeadTimes.sorted())
                     }
 
                     HStack(spacing: 8) {
@@ -1435,8 +1582,8 @@ private struct GoogleCalendarCard: View {
                         }
                     }
                 }
-                .padding(12)
-                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+
+                Divider()
 
                 HStack(spacing: 12) {
                     Button {
@@ -1445,30 +1592,40 @@ private struct GoogleCalendarCard: View {
                         Label(connectButtonTitle, systemImage: model.isGoogleCalendarConnected ? "arrow.triangle.2.circlepath" : "link")
                     }
                     .buttonStyle(.liquidGlassProminent)
-                    .tint(.leaveTeal)
                     .disabled(model.isConnectingGoogleCalendar || !model.googleCalendar.isConfigured)
 
                     Button(role: .destructive) {
-                        model.disconnectGoogleCalendar()
+                        isConfirmingDisconnect = true
                     } label: {
                         Label("Disconnect", systemImage: "xmark.circle")
                     }
                     .buttonStyle(.liquidGlass)
                     .disabled(!model.isGoogleCalendarConnected)
+                    .confirmationDialog(
+                        "Disconnect Google Calendar?",
+                        isPresented: $isConfirmingDisconnect,
+                    ) {
+                        Button("Disconnect", role: .destructive) {
+                            model.disconnectGoogleCalendar()
+                        }
+                    } message: {
+                        Text("Meetings and RSVP replies stop until you sign in to Google again.")
+                    }
                 }
 
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: model.isGoogleCalendarConnected ? "checkmark.circle.fill" : "info.circle")
-                        .foregroundStyle(model.isGoogleCalendarConnected ? Color.leaveTeal : Color.leaveOrange)
+                        .foregroundStyle(model.isGoogleCalendarConnected ? Color.leaveSuccess : Color.leaveOrange)
                     Text(connectionDetail)
                         .font(.caption)
                         .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(12)
-                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+                .callout(model.isGoogleCalendarConnected ? .leaveSuccess : .leaveOrange)
             }
         }
+        // Connecting or disconnecting recolors the status callouts together.
+        .leaveAnimation(value: model.isGoogleCalendarConnected)
     }
 
     private var connectButtonTitle: String {
@@ -1543,8 +1700,10 @@ private struct NotificationTimesCard: View {
                     VStack(spacing: 8) {
                         ForEach(model.notificationTimes) { notificationTime in
                             notificationTimeRow(notificationTime)
+                                .leaveTransition()
                         }
                     }
+                    .leaveAnimation(value: model.notificationTimes.map(\.id))
                 }
 
                 Button {
@@ -1578,20 +1737,18 @@ private struct NotificationTimesCard: View {
     private func notificationTimeRow(_ notificationTime: NotificationTime) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "bell")
-                .foregroundStyle(Color.leaveTeal)
+                .foregroundStyle(Color.leaveAccent)
                 .frame(width: 20)
 
-            DatePicker(
-                "Notification time",
+            LeaveDateField(
                 selection: Binding(
                     get: { model.date(for: notificationTime) },
                     set: { model.updateNotificationTime(id: notificationTime.id, to: $0) },
                 ),
-                displayedComponents: .hourAndMinute,
+                accessibilityLabel: "Notification time",
             )
-            .labelsHidden()
-            .datePickerStyle(.field)
-            .accessibilityLabel("Notification time")
+            .fixedSize()
+            .leaveInputField()
 
             Spacer()
 
@@ -1605,7 +1762,7 @@ private struct NotificationTimesCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+        .leaveRow()
     }
 }
 
@@ -1617,14 +1774,7 @@ private struct LoginItemCard: View {
         SurfaceCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: statusIcon)
-                        .font(.system(size: 19, weight: .semibold))
-                        .foregroundStyle(statusColor)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            statusColor.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 9, style: .continuous),
-                        )
+                    IconTile(systemName: statusIcon, color: statusColor, size: 38)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Open app at login")
@@ -1694,11 +1844,11 @@ private struct LoginItemCard: View {
     private var statusColor: Color {
         switch model.loginItemStatus {
         case .enabled:
-            return .leaveTeal
+            return .leaveSuccess
         case .disabled, .unavailable, .notFound:
             return .leaveOrange
         case .requiresApproval:
-            return .red
+            return .leaveRed
         }
     }
 
@@ -1755,15 +1905,14 @@ private struct AppVisibilityCard: View {
 
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: visibilityIcon)
-                        .foregroundStyle(Color.leaveTeal)
+                        .foregroundStyle(Color.leaveAccent)
                         .frame(width: 20)
                     Text(visibilityDetail)
                         .font(.caption)
                         .foregroundStyle(Color.leaveMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(12)
-                .liquidGlassSurface(cornerRadius: 12, tint: .leaveTeal, interactive: true)
+                .callout(.leaveAccent)
             }
         }
     }
@@ -1771,11 +1920,11 @@ private struct AppVisibilityCard: View {
     private var visibilityIcon: String {
         switch model.appVisibility {
         case .menuBarAndDock:
-            return "macwindow"
+            return "menubar.dock.rectangle"
         case .menuBarOnly:
-            return "macwindow"
+            return "menubar.rectangle"
         case .dockOnly:
-            return "macwindow"
+            return "dock.rectangle"
         }
     }
 
@@ -1856,11 +2005,7 @@ private struct PermissionCard: View {
     var body: some View {
         SurfaceCard {
             HStack(alignment: .center, spacing: 16) {
-                Image(systemName: permissionIcon)
-                    .font(.system(size: 25, weight: .medium))
-                    .foregroundStyle(permissionColor)
-                    .frame(width: 46, height: 46)
-                    .background(permissionColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                IconTile(systemName: permissionIcon, color: permissionColor, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(permissionTitle)
@@ -1881,7 +2026,6 @@ private struct PermissionCard: View {
                         }
                     }
                     .buttonStyle(.liquidGlassProminent)
-                    .tint(.leaveTeal)
                     .disabled(model.isRequestingPermission)
                 }
             }
@@ -1902,11 +2046,11 @@ private struct PermissionCard: View {
     private var permissionColor: Color {
         switch model.notificationPermission {
         case .authorized:
-            return .leaveTeal
+            return .leaveSuccess
         case .notDetermined:
             return .leaveOrange
         case .denied, .unsupported:
-            return .red
+            return .leaveRed
         }
     }
 
@@ -1939,29 +2083,49 @@ private struct PermissionCard: View {
 
 
 private struct MetricCard: View {
+    @EnvironmentObject private var model: AppModel
+
     let title: String
     let value: String
     let icon: String
+    /// Status color for the icon, so metrics that need attention stand out from the rest.
+    var tint: Color = .leaveAccent
+    /// Where clicking the card goes: the tab or settings section that owns this metric.
+    let destination: DashboardRequest
 
     var body: some View {
-        SurfaceCard {
-            VStack(alignment: .leading, spacing: 15) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.leaveTeal)
-                Text(title.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .tracking(0.8)
-                    .foregroundStyle(Color.leaveMuted)
-                Text(value)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.leaveInk)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+        Button {
+            model.handle(destination)
+        } label: {
+            SurfaceCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        IconTile(systemName: icon, color: tint, size: 30)
+                        Text(title.uppercased())
+                            .font(.caption.weight(.semibold))
+                            .tracking(0.8)
+                            .foregroundStyle(Color.leaveMuted)
+                        Spacer(minLength: 4)
+                        CardChevron()
+                    }
+                    // No text selection here: the whole card is a button.
+                    Text(value)
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.leaveInk)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .leaveNumericTransition()
+                }
+                .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
         }
+        .buttonStyle(.leaveCard)
+        .help("Open \(destination.title)")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value)")
+        .accessibilityHint("Opens \(destination.title)")
+        // Counts roll to their new value after a refresh instead of jumping.
+        .leaveAnimation(value: value)
     }
 }
 
@@ -1970,24 +2134,30 @@ private struct StatusMessage: View {
     let message: String
 
     var body: some View {
-        Label(message, systemImage: "info.circle")
+        Label(message, systemImage: "info.circle.fill")
             .font(.subheadline)
             .foregroundStyle(Color.leaveInk)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .liquidGlassSurface(cornerRadius: 14, tint: .leaveTeal)
+            .callout(.leaveAccent)
     }
 }
 
 
+/// Solid brand tile. It anchors the header, so it is filled rather than glass or tinted.
 private struct AppMark: View {
     var body: some View {
         Image(systemName: "calendar.badge.clock")
             .font(.system(size: 22, weight: .bold))
-            .foregroundStyle(Color.leaveInk)
+            .foregroundStyle(.white)
             .frame(width: 48, height: 48)
-            .liquidGlassSurface(cornerRadius: 16, tint: .leaveTeal, interactive: true)
+            .background(
+                LinearGradient(
+                    colors: [Color.leaveAccentFill, Color.leaveAccentFill.opacity(0.78)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing,
+                ),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous),
+            )
+            .shadow(color: Color.leaveShadow, radius: 6, y: 2)
             .accessibilityHidden(true)
     }
 }

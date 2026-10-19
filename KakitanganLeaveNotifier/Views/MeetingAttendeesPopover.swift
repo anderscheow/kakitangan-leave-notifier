@@ -2,6 +2,24 @@ import AppKit
 import SwiftUI
 
 
+extension CalendarResponseStatus {
+    /// One color per answer everywhere it appears, always paired with the answer's own symbol
+    /// so the color is never the only cue.
+    var tint: Color {
+        switch self {
+        case .accepted:
+            return .leaveSuccess
+        case .tentative:
+            return .leaveOrange
+        case .declined:
+            return .leaveRed
+        case .needsAction:
+            return .leaveMuted
+        }
+    }
+}
+
+
 /// "N attendees" label that opens the full guest list with each person's RSVP.
 struct MeetingAttendeesButton: View {
     let event: GoogleCalendarEvent
@@ -19,7 +37,7 @@ struct MeetingAttendeesButton: View {
                     .underline()
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.leaveTeal)
+            .foregroundStyle(Color.leaveAccent)
             .help("Show attendees")
             .accessibilityLabel("Show \(event.participantCountText) for \(event.title)")
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
@@ -197,14 +215,7 @@ private struct MeetingAttendeeRow: View {
     }
 
     private var statusColor: Color {
-        switch attendee.responseStatus {
-        case .accepted:
-            return .leaveTeal
-        case .declined:
-            return .leaveOrange
-        case .tentative, .needsAction:
-            return .leaveMuted
-        }
+        attendee.isResource ? .leaveMuted : attendee.responseStatus.tint
     }
 }
 
@@ -215,9 +226,6 @@ private struct MeetingAttendeeBadge: View {
     var body: some View {
         Text(text)
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(Color.leaveInk)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .liquidGlassCapsule()
+            .statusChip(.leaveMuted)
     }
 }

@@ -189,6 +189,24 @@ struct LeaveSummary: Equatable, Identifiable {
         period == .fullDay ? leaveType : "\(leaveType) (\(period.rawValue))"
     }
 
+    var isHalfDay: Bool {
+        period != .fullDay
+    }
+
+    /// "12 Oct 2026" for a single day or a half day, otherwise "12 Oct 2026 – 14 Oct 2026 (3 days)".
+    /// A half day always covers one date, so it never shows a range, even if the record's end date differs.
+    func dateText(calendar: Calendar = .current) -> String {
+        if isHalfDay || calendar.isDate(startDate, inSameDayAs: endDate) {
+            return DateOnly.display(startDate)
+        }
+        let days = (calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: startDate),
+            to: calendar.startOfDay(for: endDate),
+        ).day ?? 0) + 1
+        return "\(DateOnly.display(startDate)) – \(DateOnly.display(endDate)) (\(days) days)"
+    }
+
     func remainingDaysLabel(from today: Date) -> String {
         let days = Calendar.current.dateComponents([.day], from: today, to: startDate).day ?? 0
         switch days {
@@ -206,10 +224,14 @@ struct LeaveSummary: Equatable, Identifiable {
     /// Collapses continuous leaves into a single summary. Two leaves are merged when they belong to the
     /// same person (email) and leave type, and their date ranges touch or overlap — that is, the next
     /// leave starts no later than the day after the current one ends. Same leave type is required so the
-    /// merged row keeps an accurate leave-type label.
+    /// merged row keeps an accurate leave-type label. Half days are never merged: morning leave on two
+    /// consecutive days is not continuous leave, and a merged range would read as full days off.
     static func mergingContinuous(_ leaves: [LeaveSummary], calendar: Calendar = .current) -> [LeaveSummary] {
-        let grouped = Dictionary(grouping: leaves) { "\($0.accountEmail)|\($0.email)|\($0.leaveType)|\($0.period.rawValue)" }
-        var merged: [LeaveSummary] = []
+        let halfDays = leaves.filter(\.isHalfDay)
+        let grouped = Dictionary(grouping: leaves.filter { !$0.isHalfDay }) {
+            "\($0.accountEmail)|\($0.email)|\($0.leaveType)|\($0.period.rawValue)"
+        }
+        var merged = halfDays
 
         for group in grouped.values {
             let sorted = group.sorted { $0.startDate < $1.startDate }
