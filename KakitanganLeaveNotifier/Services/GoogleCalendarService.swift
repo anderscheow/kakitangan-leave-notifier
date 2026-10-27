@@ -177,6 +177,7 @@ struct GoogleCalendarEvent: Identifiable, Equatable {
     let isCancelled: Bool
     let location: String?
     let meetingLink: URL?
+    let creatorEmail: String?
     let organizerEmail: String?
     let attendees: [GoogleCalendarAttendee]
     let ownerEmail: String
@@ -192,6 +193,12 @@ struct GoogleCalendarEvent: Identifiable, Equatable {
     /// Only invited guests have an RSVP to update; Google rejects replies from anyone else.
     var canRespond: Bool {
         attendees.contains(where: \.isSelf)
+    }
+
+    /// Only the account that created an event can delete it from this app.
+    var canDelete: Bool {
+        guard let creatorEmail else { return false }
+        return creatorEmail.caseInsensitiveCompare(ownerEmail) == .orderedSame
     }
 
     var hasEnded: Bool {
@@ -516,6 +523,27 @@ final class GoogleCalendarService {
         return updated
     }
 
+    func deleteEvent(_ event: GoogleCalendarEvent, accessToken: String) async throws {
+        guard event.canDelete,
+              let encodedEventID = event.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              var components = URLComponents(string: "https://www.googleapis.com/calendar/v3/calendars/primary/events/\(encodedEventID)")
+        else {
+            throw NotifierError.googleCalendarRequestFailed
+        }
+        components.queryItems = [URLQueryItem(name: "sendUpdates", value: "all")]
+        guard let url = components.url else {
+            throw NotifierError.googleCalendarRequestFailed
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw NotifierError.googleCalendarRequestFailed
+        }
+    }
+
     /// Inserts a meeting on the primary calendar. Recurring meetings come back as the series'
     /// master event, so callers should refresh the expanded list afterwards.
     func createEvent(_ draft: MeetingDraft, ownerEmail: String, accessToken: String) async throws -> GoogleCalendarEvent {
@@ -688,6 +716,7 @@ private struct GoogleCalendarEventResponse: Decodable {
     let location: String?
     let hangoutLink: String?
     let htmlLink: String?
+    let creator: GoogleCalendarPerson?
     let organizer: GoogleCalendarPerson?
     let attendees: [GoogleCalendarPerson]?
     let originalStartTime: GoogleCalendarEventDate?
@@ -705,6 +734,7 @@ private struct GoogleCalendarEventResponse: Decodable {
             isCancelled: isCancelled,
             location: location,
             meetingLink: URL(string: hangoutLink ?? htmlLink ?? ""),
+            creatorEmail: creator?.email,
             organizerEmail: organizer?.email,
             attendees: attendees?.compactMap { $0.attendee } ?? [],
             ownerEmail: ownerEmail,

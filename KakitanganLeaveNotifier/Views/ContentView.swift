@@ -744,7 +744,11 @@ private struct MeetingGroupSection: View {
 
 
 private struct MeetingRow: View {
+    @EnvironmentObject private var model: AppModel
+
     let event: GoogleCalendarEvent
+
+    @State private var isConfirmingDeletion = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -784,6 +788,24 @@ private struct MeetingRow: View {
                     .help(event.hasEnded ? "This meeting has ended" : "Join meeting")
                     .accessibilityLabel("Join \(event.title)")
                 }
+
+                if event.canDelete, !event.isCancelled {
+                    Button(role: .destructive) {
+                        isConfirmingDeletion = true
+                    } label: {
+                        if model.deletingEventIDs.contains(event.id) {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "trash")
+                        }
+                    }
+                    .buttonStyle(.liquidGlass)
+                    .controlSize(.small)
+                    .disabled(model.deletingEventIDs.contains(event.id))
+                    .help("Delete meeting")
+                    .accessibilityLabel("Delete \(event.title)")
+                }
             }
 
             if event.isCancelled {
@@ -799,6 +821,16 @@ private struct MeetingRow: View {
         .leaveRow(accent: statusColor)
         // `.contain` keeps the attendee, join, and RSVP buttons individually reachable.
         .accessibilityElement(children: .contain)
+        .confirmationDialog(
+            "Delete \(event.title)?",
+            isPresented: $isConfirmingDeletion,
+        ) {
+            Button("Delete Meeting", role: .destructive) {
+                Task { await model.deleteMeeting(event) }
+            }
+        } message: {
+            Text("This will cancel the meeting for all invited guests.")
+        }
     }
 
     private var icon: String {

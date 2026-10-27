@@ -124,6 +124,8 @@ final class AppModel: ObservableObject {
     @Published var isRefreshingCalendar: Bool = false
     /// Events with an RSVP update in flight, so their reply buttons can show progress and avoid double sends.
     @Published private(set) var respondingEventIDs: Set<String> = []
+    /// Events with a deletion in flight, so they cannot be deleted twice.
+    @Published private(set) var deletingEventIDs: Set<String> = []
     @Published var dashboardSection: DashboardSection = .overview
     @Published var settingsSection: SettingsSection = .account
     @Published var isPresentingNewMeeting: Bool = false
@@ -794,6 +796,27 @@ final class AppModel: ObservableObject {
                 calendarEvents[index] = updated
             }
             statusMessage = "Response updated to \(responseStatus.title)."
+        } catch {
+            statusMessage = googleCalendarStatusMessage(for: error)
+        }
+    }
+
+    func deleteMeeting(_ event: GoogleCalendarEvent) async {
+        guard event.canDelete, !deletingEventIDs.contains(event.id) else {
+            return
+        }
+        deletingEventIDs.insert(event.id)
+        defer { deletingEventIDs.remove(event.id) }
+
+        do {
+            let service = GoogleCalendarService()
+            let user = try await service.userWithCalendarEventsScope(
+                service.restorePreviousSignIn(),
+                presenting: NSApp.oauthPresentationWindow,
+            )
+            try await service.deleteEvent(event, accessToken: service.accessToken(for: user))
+            await handleCalendarEventsUpdate(calendarEvents.filter { $0.id != event.id })
+            statusMessage = "Deleted \"\(event.title)\"."
         } catch {
             statusMessage = googleCalendarStatusMessage(for: error)
         }
