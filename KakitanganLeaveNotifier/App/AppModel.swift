@@ -888,7 +888,7 @@ final class AppModel: ObservableObject {
             try? await NotificationService.shared.sendCancelledMeetingAlert(event: event)
         }
         try? await NotificationService.shared.scheduleMeetingReminders(
-            events: events,
+            events: events.filter { !$0.isCancelled },
             leadTimes: googleCalendar.reminderLeadTimes,
         )
     }
